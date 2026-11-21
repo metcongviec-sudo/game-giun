@@ -15,9 +15,11 @@ const PORT = process.env.PORT || 3150;
 const MAP_SIZE = 7000;
 const MAP_CENTER = 3500;
 const MAP_RADIUS = 3200;
-const TICK_RATE = 20; // 20 fps ticks (50ms interval) - Tối ưu băng thông & cực nhẹ cho điện thoại
+const TICK_RATE = 20; // 20 fps ticks (50ms interval)
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
+const MAX_FOODS = 220; // Giới hạn tối đa 220 hạt mồi, tuyệt đối không phình to gây nghẽn mạng
+const MAX_BODY_SEGMENTS = 70; // Giới hạn tối đa 70 đốt thân, đảm bảo nhẹ nhàng 60 FPS
 
 // Bộ nhớ lưu các phiên chơi tạo từ Bot Zalo (Session ngắn 6 ký tự)
 const activeSessions = new Map();
@@ -316,7 +318,7 @@ const SNAKE_COLORS = [
 
 const rooms = new Map();
 
-const TARGET_BOT_COUNT = 10;
+const TARGET_BOT_COUNT = 8;
 
 const BOT_NAMES = [
   "Bé Giun 🐛", "Giun Nhí 👶", "Sâu Con 🍎", "Bé Na 🐍", "Giun Đất 🌱",
@@ -409,6 +411,9 @@ function spawnInitialFoods(room, count) {
 }
 
 function spawnFood(room, x, y, val = 1) {
+  if (room.foods.length >= MAX_FOODS) {
+    room.foods.shift();
+  }
   let fx = x;
   let fy = y;
   if (fx === undefined || fy === undefined) {
@@ -479,15 +484,17 @@ function killPlayer(room, player) {
   if (!player.alive) return;
   player.alive = false;
 
-  // Thân giun nổ thành chuỗi mồi to sáng rực rỡ như Slither.io
+  // Thân giun nổ thành chuỗi mồi to (giới hạn tối đa 16 hạt mồi giá trị cao, tránh spam mồi nghẽn server)
   const body = player.body || [];
-  for (let i = 0; i < body.length; i += 2) {
+  const dropCount = Math.min(16, Math.max(4, Math.floor(body.length / 4)));
+  const step = Math.max(1, Math.floor(body.length / dropCount));
+  for (let i = 0; i < body.length && i < dropCount * step; i += step) {
     const seg = body[i];
     spawnFood(
       room,
-      seg.x + (Math.random() - 0.5) * 24,
-      seg.y + (Math.random() - 0.5) * 24,
-      3 + Math.floor(Math.random() * 4)
+      seg.x + (Math.random() - 0.5) * 16,
+      seg.y + (Math.random() - 0.5) * 16,
+      4 + Math.floor(Math.random() * 4)
     );
   }
 
@@ -512,8 +519,12 @@ function killPlayer(room, player) {
 }
 
 function tickRoom(room) {
-  // Duy trì lượng mồi tối ưu (150 hạt mồi vừa đẹp bản đồ, nhẹ mạng mượt mà)
-  if (room.foods.length < 150) {
+  // Cắt tỉa mồi thừa nếu bị phình to
+  if (room.foods.length > MAX_FOODS) {
+    room.foods = room.foods.slice(-MAX_FOODS);
+  }
+  // Duy trì lượng mồi tối ưu (120 hạt mồi, cực nhẹ)
+  if (room.foods.length < 120) {
     spawnFood(room);
   }
 
@@ -607,9 +618,9 @@ function tickRoom(room) {
       continue;
     }
 
-    // Cập nhật thân giun
+    // Cập nhật thân giun (Giới hạn tối đa MAX_BODY_SEGMENTS đốt để chống phình to lag)
     player.body.unshift({ x: player.x, y: player.y });
-    const targetBodyLength = Math.floor(18 + player.score * 0.65);
+    const targetBodyLength = Math.min(MAX_BODY_SEGMENTS, Math.floor(16 + Math.sqrt(Math.max(0, player.score)) * 2.8));
     while (player.body.length > targetBodyLength) {
       player.body.pop();
     }
@@ -723,25 +734,34 @@ function tickRoom(room) {
     }
   }
 
-  // Mồi chỉ cần gửi mỗi 4 tick (200ms) vì mồi đứng yên, giảm 75% dung lượng mạng
-  const sendFoods = (room.tickCount % 4 === 0) || !room.cachedFoods;
+  // Mồi chỉ cần gửi mỗi 10 tick (500ms) vì mồi đứng yên, giảm 90% dung lượng mạng
+  const sendFoods = (room.tickCount % 10 === 0) || !room.cachedFoods;
   if (sendFoods) {
     room.cachedFoods = room.foods.map(f => [Math.round(f.x), Math.round(f.y), f.val, f.color]);
   }
 
-  const playersSummary = playersList.map(p => ({
-    id: p.id,
-    name: p.name,
-    avatar: p.avatar,
-    x: Math.round(p.x * 10) / 10,
-    y: Math.round(p.y * 10) / 10,
-    angle: Math.round(p.angle * 100) / 100,
-    radius: Math.round(p.radius),
-    color: p.color,
-    isBoosting: p.isBoosting,
-    score: Math.floor(p.score),
-    body: p.body.filter((_, idx) => idx % 2 === 0).map(b => [Math.round(b.x), Math.round(b.y)])
-  }));
+  const playersSummary = playersList.map(p => {
+    const bodyLen = p.body.length;
+    // Lấy mẫu thân giun vừa đủ (tối đa ~30 đốt) để gói tin mạng siêu nhẹ chỉ vài KB
+    const step = Math.max(1, Math.ceil(bodyLen / 30));
+    const sampleBody = [];
+    for (let idx = 0; idx < bodyLen; idx += step) {
+      sampleBody.push([Math.round(p.body[idx].x), Math.round(p.body[idx].y)]);
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      x: Math.round(p.x * 10) / 10,
+      y: Math.round(p.y * 10) / 10,
+      angle: Math.round(p.angle * 100) / 100,
+      radius: Math.round(p.radius),
+      color: p.color,
+      isBoosting: p.isBoosting,
+      score: Math.floor(p.score),
+      body: sampleBody
+    };
+  });
 
   const tickPacket = JSON.stringify({
     type: "tick",

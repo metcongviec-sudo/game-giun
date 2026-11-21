@@ -706,13 +706,31 @@
 
     // Smooth Lerp positions & angles for all players at 60 FPS
     for (const p of playerEntities.values()) {
-      if (typeof p.targetX === "number") p.x += (p.targetX - p.x) * 0.35;
-      if (typeof p.targetY === "number") p.y += (p.targetY - p.y) * 0.35;
+      if (typeof p.targetX === "number") p.x += (p.targetX - p.x) * 0.4;
+      if (typeof p.targetY === "number") p.y += (p.targetY - p.y) * 0.4;
       if (typeof p.targetAngle === "number") {
         let diff = p.targetAngle - p.angle;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        p.angle += diff * 0.35;
+        p.angle += diff * 0.4;
+      }
+
+      // Smooth 60 FPS Body Follow (Triệt tiêu 100% hiện tượng thân giun giật lag)
+      if (!p.renderBody || p.renderBody.length !== (p.body ? p.body.length : 0)) {
+        p.renderBody = (p.body || []).map(b => ({ x: b[0], y: b[1] }));
+      }
+      for (let i = 0; i < p.renderBody.length; i++) {
+        const prev = i === 0 ? p : p.renderBody[i - 1];
+        const seg = p.renderBody[i];
+        const dx = prev.x - seg.x;
+        const dy = prev.y - seg.y;
+        const dist = Math.hypot(dx, dy);
+        const segSpacing = 7;
+        if (dist > segSpacing) {
+          const a = Math.atan2(dy, dx);
+          seg.x = prev.x - Math.cos(a) * segSpacing;
+          seg.y = prev.y - Math.sin(a) * segSpacing;
+        }
       }
     }
 
@@ -858,7 +876,7 @@
         continue;
       }
 
-      const body = p.body || [];
+      const body = p.renderBody || (p.body || []).map(b => ({ x: b[0], y: b[1] }));
       const skin = p.color || SKINS[0];
       const pattern = skin.pattern || [skin.head || "#22c55e", skin.body1 || "#16a34a"];
       const radius = p.radius || 15;
@@ -867,8 +885,8 @@
       if (p.isBoosting && body.length > 2 && Math.random() < 0.35) {
         const tail = body[body.length - 1];
         boostParticles.push({
-          x: tail[0],
-          y: tail[1],
+          x: tail.x !== undefined ? tail.x : tail[0],
+          y: tail.y !== undefined ? tail.y : tail[1],
           vx: -Math.cos(p.angle) * 1.5,
           vy: -Math.sin(p.angle) * 1.5,
           radius: 3,
@@ -877,16 +895,18 @@
         });
       }
 
-      // 1. Thân con giun - Đơn giản, tròn trịa, mượt mà
+      // 1. Thân con giun - Đơn giản, tròn trịa, lượn mượt 60 FPS
       for (let i = body.length - 1; i >= 0; i--) {
         const seg = body[i];
+        const segX = seg.x !== undefined ? seg.x : seg[0];
+        const segY = seg.y !== undefined ? seg.y : seg[1];
         const segRadius = Math.max(7, radius * (0.7 + 0.3 * (1 - i / body.length)));
         const colorIdx = i % pattern.length;
         const baseColor = pattern[colorIdx];
 
         // Đốt tròn trơn sạch sẽ
         ctx.beginPath();
-        ctx.arc(seg[0], seg[1], segRadius, 0, Math.PI * 2);
+        ctx.arc(segX, segY, segRadius, 0, Math.PI * 2);
         ctx.fillStyle = baseColor;
         ctx.fill();
 
