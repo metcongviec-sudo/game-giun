@@ -24,8 +24,7 @@
   const previewAvatar = document.getElementById("previewAvatar");
   const previewName = document.getElementById("previewName");
   const previewRoom = document.getElementById("previewRoom");
-  const nameInputWrap = document.getElementById("nameInputWrap");
-  const customNameInput = document.getElementById("customNameInput");
+  const authStatusNotice = document.getElementById("authStatusNotice");
   const skinListEl = document.getElementById("skinList");
   const btnStartGame = document.getElementById("btnStartGame");
 
@@ -235,52 +234,85 @@
     }
   }
 
-  const savedName = localStorage.getItem("ruaxbonz_giun_name") || "";
-  let playerProfile = {
-    name: savedName || "Chiến Thần",
-    roomId: "ruaxbonz_arena",
-    roomName: "Đấu trường ruaxbonz.com"
-  };
-
-  if (customNameInput) {
-    customNameInput.value = playerProfile.name;
-    customNameInput.addEventListener("input", () => {
-      const val = customNameInput.value.trim();
-      if (val) {
-        playerProfile.name = val;
-        try { localStorage.setItem("ruaxbonz_giun_name", val); } catch(_) {}
-        updateProfileUI();
-      }
-    });
+  // Tự động khôi phục token từ localStorage nếu truy cập thẳng vào trang chủ
+  if (!token) {
+    try {
+      token = localStorage.getItem("ruaxbonz_token") || "";
+    } catch (_) {}
+  } else {
+    try {
+      localStorage.setItem("ruaxbonz_token", token);
+    } catch (_) {}
   }
 
-  // Xác thực token với server nếu có
+  let playerProfile = {
+    name: "Đang nhận diện danh tính...",
+    roomId: "ruaxbonz_arena",
+    roomName: "Đấu trường ruaxbonz.com",
+    uid: ""
+  };
+
+  let hasValidAuth = false;
+
+  // Xác thực token với server để lấy chính xác Tên Zalo thật
   if (token) {
     fetch(`/api/verify-token?token=${encodeURIComponent(token)}`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.player) {
-          const verifiedName = (data.player.name || "").trim();
-          if (verifiedName && (!savedName || savedName === "Chiến Thần")) {
-            playerProfile.name = verifiedName;
-            if (customNameInput) customNameInput.value = verifiedName;
-          }
+        if (data.success && data.player && data.player.name) {
+          playerProfile.name = String(data.player.name).trim();
+          playerProfile.uid = data.player.uid || "";
           playerProfile.roomId = "ruaxbonz_arena";
           playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
+          hasValidAuth = true;
+          try {
+            localStorage.setItem("ruaxbonz_player_name", playerProfile.name);
+          } catch (_) {}
+        } else {
+          hasValidAuth = false;
         }
         updateProfileUI();
       })
       .catch(() => {
+        try {
+          const cachedName = localStorage.getItem("ruaxbonz_player_name");
+          if (cachedName) {
+            playerProfile.name = cachedName;
+            hasValidAuth = true;
+          }
+        } catch (_) {}
         updateProfileUI();
       });
   } else {
+    hasValidAuth = false;
     updateProfileUI();
   }
 
   function updateProfileUI() {
-    if (previewName) previewName.textContent = playerProfile.name;
-    if (previewRoom) previewRoom.textContent = `📍 ${playerProfile.roomName}`;
-    if (hudName) hudName.textContent = playerProfile.name;
+    if (hasValidAuth && playerProfile.name) {
+      if (previewName) previewName.textContent = playerProfile.name;
+      if (previewRoom) previewRoom.textContent = `📍 ${playerProfile.roomName}`;
+      if (hudName) hudName.textContent = playerProfile.name;
+      if (authStatusNotice) authStatusNotice.style.display = "none";
+      if (btnStartGame) {
+        btnStartGame.disabled = false;
+        btnStartGame.classList.remove("btn-disabled");
+        const btnContent = btnStartGame.querySelector(".btn-content");
+        if (btnContent) btnContent.textContent = "PLAY / VÀO CHIẾN 🚀";
+      }
+    } else {
+      if (previewName) previewName.textContent = "Chưa nhận diện danh tính";
+      if (authStatusNotice) {
+        authStatusNotice.style.display = "block";
+        authStatusNotice.innerHTML = "⚠️ <b>Chưa có link xác thực tài khoản!</b><br>Vui lòng vào nhóm Zalo gõ lệnh <code>!giun</code> để bot cấp link xác thực theo đúng tên nick của bạn!";
+      }
+      if (btnStartGame) {
+        btnStartGame.disabled = true;
+        btnStartGame.classList.add("btn-disabled");
+        const btnContent = btnStartGame.querySelector(".btn-content");
+        if (btnContent) btnContent.textContent = "GÕ !GIUN TRONG ZALO ĐỂ VÀO ⚠️";
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════
@@ -336,14 +368,12 @@
   // WEBSOCKET COMMUNICATION
   // ══════════════════════════════════════════════════
   function connectWebSocket() {
-    initAudio();
-
-    const customName = customNameInput ? customNameInput.value.trim() : "";
-    if (customName) {
-      playerProfile.name = customName;
-      try { localStorage.setItem("ruaxbonz_giun_name", customName); } catch (_) {}
+    if (!hasValidAuth || !token) {
+      updateProfileUI();
+      return;
     }
 
+    initAudio();
     welcomeModal.style.display = "none";
 
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -355,7 +385,6 @@
       ws.send(JSON.stringify({
         type: "join",
         token: token,
-        name: playerProfile.name,
         skin: SKINS[selectedSkinIdx]
       }));
     };

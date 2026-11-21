@@ -88,17 +88,20 @@
         <div class="slither-logo-sub">ĐẠI CHIẾN CON GIUN VIP</div>
       </div>
 
-      <!-- Card hiển thị & chỉnh sửa tên người chơi -->
-      <div class="name-editor-card">
-        <div class="name-editor-header">
-          <span class="name-editor-label">TÊN CON GIUN CỦA BẠN:</span>
-          <span class="name-editor-badge">✏️ Bấm để sửa</span>
+      <!-- Card hiển thị tên Zalo chính chủ - KHÓA CỐ ĐỊNH KHÔNG CHO ĐẶT TÊN -->
+      <div class="player-identity-card">
+        <div class="identity-header">
+          <span class="identity-badge">🔒 DANH TÍNH ZALO XÁC THỰC</span>
         </div>
-        <div class="name-input-wrapper">
-          <input type="text" id="customNameInput" class="name-input-field" placeholder="Nhập tên con giun..." maxlength="22" autocomplete="off" spellcheck="false">
+        <div class="identity-name-box">
+          <span class="identity-icon">👤</span>
+          <span id="previewName" class="identity-name">Đang nhận diện tài khoản...</span>
         </div>
-        <div class="name-room-hint" id="previewRoom">📍 Đấu trường chung ruaxbonz.com</div>
+        <div class="identity-lock-hint" id="previewRoom">📍 Đấu trường chung ruaxbonz.com</div>
       </div>
+
+      <!-- Hộp cảnh báo nếu vào trang web trống không có token -->
+      <div id="authStatusNotice" class="auth-notice-box" style="display:none;"></div>
 
       <!-- Chọn Skin Slither.io Striped Segments -->
       <div class="skin-selector-wrap">

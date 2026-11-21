@@ -344,25 +344,20 @@ wss.on("connection", (ws) => {
       const msg = JSON.parse(rawMsg);
 
       if (msg.type === "join") {
-        let chosenName = (typeof msg.name === "string" ? msg.name.trim() : "").slice(0, 25);
+        let playerName = "Chiến Thần";
         let playerUid = "";
 
+        // Bắt buộc lấy đúng tên Zalo thật từ Token mã hóa, không cho phép đổi tên tùy tiện
         if (msg.token) {
           const verified = verifyGameToken(msg.token);
-          if (verified) {
+          if (verified && verified.name) {
+            playerName = String(verified.name).trim().slice(0, 25);
             playerUid = verified.uid || "";
-            if (!chosenName) {
-              chosenName = (verified.name || "").trim();
-            }
           }
         }
 
-        if (!chosenName) {
-          chosenName = "Chiến Thần";
-        }
-
         const playerInfo = {
-          name: chosenName,
+          name: playerName,
           avatar: "",
           roomId: GLOBAL_ROOM_ID,
           uid: playerUid,
