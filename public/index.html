@@ -88,11 +88,16 @@
         <div class="slither-logo-sub">ĐẠI CHIẾN CON GIUN VIP</div>
       </div>
 
-      <div class="player-card-hero">
-        <div class="hero-details">
-          <div id="previewName" class="hero-name">Đang nhận diện tài khoản...</div>
-          <div id="previewRoom" class="hero-room">📍 Đấu trường chung ruaxbonz.com</div>
+      <!-- Card hiển thị & chỉnh sửa tên người chơi -->
+      <div class="name-editor-card">
+        <div class="name-editor-header">
+          <span class="name-editor-label">TÊN CON GIUN CỦA BẠN:</span>
+          <span class="name-editor-badge">✏️ Bấm để sửa</span>
         </div>
+        <div class="name-input-wrapper">
+          <input type="text" id="customNameInput" class="name-input-field" placeholder="Nhập tên con giun..." maxlength="22" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="name-room-hint" id="previewRoom">📍 Đấu trường chung ruaxbonz.com</div>
       </div>
 
       <!-- Chọn Skin Slither.io Striped Segments -->
@@ -101,11 +106,6 @@
         <div id="skinList" class="skin-list">
           <!-- Skin color circles -->
         </div>
-      </div>
-
-      <!-- Input nhập tên nếu không qua link bot -->
-      <div class="input-wrap" id="nameInputWrap" style="display:none;">
-        <input type="text" id="customNameInput" placeholder="Nhập biệt danh của bạn..." maxlength="20">
       </div>
 
       <button id="btnStartGame" class="btn-battle-launch btn-slither-play">

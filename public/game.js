@@ -234,11 +234,24 @@
     }
   }
 
+  const savedName = localStorage.getItem("ruaxbonz_giun_name") || "";
   let playerProfile = {
-    name: "Chiến Thần",
+    name: savedName || "Chiến Thần",
     roomId: "ruaxbonz_arena",
     roomName: "Đấu trường ruaxbonz.com"
   };
+
+  if (customNameInput) {
+    customNameInput.value = playerProfile.name;
+    customNameInput.addEventListener("input", () => {
+      const val = customNameInput.value.trim();
+      if (val) {
+        playerProfile.name = val;
+        try { localStorage.setItem("ruaxbonz_giun_name", val); } catch(_) {}
+        updateProfileUI();
+      }
+    });
+  }
 
   // Xác thực token với server nếu có
   if (token) {
@@ -246,7 +259,11 @@
       .then(res => res.json())
       .then(data => {
         if (data.success && data.player) {
-          playerProfile.name = data.player.name || "Chiến Thần";
+          const verifiedName = (data.player.name || "").trim();
+          if (verifiedName && (!savedName || savedName === "Chiến Thần")) {
+            playerProfile.name = verifiedName;
+            if (customNameInput) customNameInput.value = verifiedName;
+          }
           playerProfile.roomId = "ruaxbonz_arena";
           playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
         }
@@ -321,7 +338,10 @@
     initAudio();
 
     const customName = customNameInput ? customNameInput.value.trim() : "";
-    if (customName) playerProfile.name = customName;
+    if (customName) {
+      playerProfile.name = customName;
+      try { localStorage.setItem("ruaxbonz_giun_name", customName); } catch (_) {}
+    }
 
     welcomeModal.style.display = "none";
 

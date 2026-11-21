@@ -344,23 +344,30 @@ wss.on("connection", (ws) => {
       const msg = JSON.parse(rawMsg);
 
       if (msg.type === "join") {
-        let playerInfo = {
-          name: msg.name || "Chiến thần",
-          avatar: "",
-          roomId: GLOBAL_ROOM_ID,
-          uid: "",
-          skin: msg.skin || null
-        };
+        let chosenName = (typeof msg.name === "string" ? msg.name.trim() : "").slice(0, 25);
+        let playerUid = "";
 
         if (msg.token) {
           const verified = verifyGameToken(msg.token);
           if (verified) {
-            playerInfo.name = verified.name || playerInfo.name;
-            playerInfo.avatar = "";
-            playerInfo.roomId = GLOBAL_ROOM_ID;
-            playerInfo.uid = verified.uid || "";
+            playerUid = verified.uid || "";
+            if (!chosenName) {
+              chosenName = (verified.name || "").trim();
+            }
           }
         }
+
+        if (!chosenName) {
+          chosenName = "Chiến Thần";
+        }
+
+        const playerInfo = {
+          name: chosenName,
+          avatar: "",
+          roomId: GLOBAL_ROOM_ID,
+          uid: playerUid,
+          skin: msg.skin || null
+        };
 
         ws.roomId = GLOBAL_ROOM_ID;
         ws.playerInfo = playerInfo;
