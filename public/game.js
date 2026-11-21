@@ -41,57 +41,83 @@
   const btnBoost = document.getElementById("btnBoost");
 
   // ══════════════════════════════════════════════════
-  // CÁC MÀU GIUN ĐƠN GIẢN, TƯƠI SÁNG, DỄ THƯƠNG
+  // 12 SKIN SLITHER.IO ĐỘC ĐÁO & BẮT MẮT
   // ══════════════════════════════════════════════════
   const SKINS = [
     {
       id: 0,
-      name: "Xanh Lá",
-      head: "#22c55e",
-      pattern: ["#22c55e", "#16a34a"],
-      glow: "rgba(34, 197, 94, 0.35)"
+      name: "Việt Nam 🇻🇳",
+      head: "#ef4444",
+      pattern: ["#ef4444", "#facc15", "#ef4444"],
+      special: "star"
     },
     {
       id: 1,
-      name: "Xanh Biển",
-      head: "#06b6d4",
-      pattern: ["#06b6d4", "#0284c7"],
-      glow: "rgba(6, 182, 212, 0.35)"
+      name: "Cầu Vồng 🌈",
+      head: "#ef4444",
+      pattern: ["#ef4444", "#f97316", "#facc15", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7"]
     },
     {
       id: 2,
-      name: "Đỏ",
-      head: "#ef4444",
-      pattern: ["#ef4444", "#b91c1c"],
-      glow: "rgba(239, 68, 68, 0.35)"
+      name: "Ong Vàng 🐝",
+      head: "#fbbf24",
+      pattern: ["#fbbf24", "#fbbf24", "#18181b", "#18181b"]
     },
     {
       id: 3,
-      name: "Vàng",
-      head: "#eab308",
-      pattern: ["#eab308", "#ca8a04"],
-      glow: "rgba(234, 179, 8, 0.35)"
+      name: "Dưa Hấu 🍉",
+      head: "#15803d",
+      pattern: ["#16a34a", "#22c55e", "#ef4444", "#dc2626"]
     },
     {
       id: 4,
-      name: "Tím",
-      head: "#a855f7",
-      pattern: ["#a855f7", "#7e22ce"],
-      glow: "rgba(168, 85, 247, 0.35)"
+      name: "Kẹo Bạc Hà 🍬",
+      head: "#ef4444",
+      pattern: ["#ef4444", "#ffffff", "#ef4444", "#ffffff"]
     },
     {
       id: 5,
-      name: "Cam",
-      head: "#f97316",
-      pattern: ["#f97316", "#c2410c"],
-      glow: "rgba(249, 115, 22, 0.35)"
+      name: "Băng Tuyết ❄️",
+      head: "#38bdf8",
+      pattern: ["#38bdf8", "#7dd3fc", "#e0f2fe", "#0284c7"]
     },
     {
       id: 6,
-      name: "Hồng",
-      head: "#ec4899",
-      pattern: ["#ec4899", "#be185d"],
-      glow: "rgba(236, 72, 153, 0.35)"
+      name: "Hắc Ám 🥷",
+      head: "#1e1e24",
+      pattern: ["#18181b", "#27272a", "#7c3aed", "#18181b"],
+      special: "ninja"
+    },
+    {
+      id: 7,
+      name: "Hoàng Gia 👑",
+      head: "#eab308",
+      pattern: ["#eab308", "#ca8a04", "#fef08a", "#eab308"],
+      special: "crown"
+    },
+    {
+      id: 8,
+      name: "Lửa Đỏ 🔥",
+      head: "#dc2626",
+      pattern: ["#dc2626", "#ea580c", "#f59e0b", "#f97316"]
+    },
+    {
+      id: 9,
+      name: "Độc Dược 🧪",
+      head: "#9333ea",
+      pattern: ["#9333ea", "#22c55e", "#7e22ce", "#16a34a"]
+    },
+    {
+      id: 10,
+      name: "Captain 🇺🇸",
+      head: "#2563eb",
+      pattern: ["#2563eb", "#ffffff", "#dc2626", "#ffffff"]
+    },
+    {
+      id: 11,
+      name: "Xanh Lục 🌱",
+      head: "#22c55e",
+      pattern: ["#22c55e", "#16a34a", "#22c55e", "#15803d"]
     }
   ];
 
@@ -103,8 +129,15 @@
     SKINS.forEach((s, idx) => {
       const circle = document.createElement("div");
       circle.className = `skin-circle ${idx === selectedSkinIdx ? 'selected' : ''}`;
-      circle.style.background = `radial-gradient(circle at 35% 35%, ${s.head}, ${s.pattern[1] || s.head})`;
+      if (s.pattern && s.pattern.length > 1) {
+        const step = 100 / s.pattern.length;
+        const gradStops = s.pattern.map((c, i) => `${c} ${Math.round(i * step)}%, ${c} ${Math.round((i + 1) * step)}%`).join(", ");
+        circle.style.background = `linear-gradient(135deg, ${gradStops})`;
+      } else {
+        circle.style.background = `radial-gradient(circle at 35% 35%, ${s.head}, ${s.head})`;
+      }
       circle.style.color = s.head;
+      circle.title = s.name;
       circle.addEventListener("click", () => {
         selectedSkinIdx = idx;
         renderSkinSelector();
@@ -962,6 +995,58 @@
         ctx.arc(lookX, offsetY, pupilRadius, 0, Math.PI * 2);
         ctx.fill();
       });
+
+      // Phụ kiện đặc biệt cho skin (Star cho Việt Nam, Crown cho Hoàng Gia, Headband cho Ninja)
+      if (skin.special === "star") {
+        ctx.save();
+        ctx.fillStyle = "#facc15";
+        ctx.beginPath();
+        const starR = radius * 0.42;
+        const starX = radius * 0.05;
+        const starY = 0;
+        for (let sIdx = 0; sIdx < 5; sIdx++) {
+          const aOuter = (sIdx * 4 * Math.PI) / 5 - Math.PI / 2;
+          const aInner = aOuter + (2 * Math.PI) / 10;
+          const x1 = starX + Math.cos(aOuter) * starR;
+          const y1 = starY + Math.sin(aOuter) * starR;
+          const x2 = starX + Math.cos(aInner) * (starR * 0.45);
+          const y2 = starY + Math.sin(aInner) * (starR * 0.45);
+          if (sIdx === 0) ctx.moveTo(x1, y1);
+          else ctx.lineTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else if (skin.special === "crown") {
+        ctx.save();
+        ctx.fillStyle = "#facc15";
+        ctx.strokeStyle = "#ca8a04";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const cw = radius * 0.65;
+        const ch = radius * 0.55;
+        ctx.moveTo(-cw * 0.5, -radius * 0.3);
+        ctx.lineTo(-cw * 0.5, -radius * 0.3 - ch);
+        ctx.lineTo(-cw * 0.2, -radius * 0.3 - ch * 0.5);
+        ctx.lineTo(0, -radius * 0.3 - ch * 1.15);
+        ctx.lineTo(cw * 0.2, -radius * 0.3 - ch * 0.5);
+        ctx.lineTo(cw * 0.5, -radius * 0.3 - ch);
+        ctx.lineTo(cw * 0.5, -radius * 0.3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      } else if (skin.special === "ninja") {
+        ctx.save();
+        ctx.strokeStyle = "#a855f7";
+        ctx.lineWidth = radius * 0.26;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.88, -Math.PI * 0.45, Math.PI * 0.45);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       ctx.restore();
 

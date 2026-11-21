@@ -307,13 +307,30 @@ app.get("/api/avatar-proxy", async (req, res) => {
 // ========================================================
 
 const SNAKE_COLORS = [
-  { head: "#22c55e", body1: "#16a34a", pattern: ["#22c55e", "#16a34a"], glow: "rgba(34, 197, 94, 0.35)" }, // Xanh Lá
-  { head: "#06b6d4", body1: "#0284c7", pattern: ["#06b6d4", "#0284c7"], glow: "rgba(6, 182, 212, 0.35)" }, // Xanh Biển
-  { head: "#ef4444", body1: "#b91c1c", pattern: ["#ef4444", "#b91c1c"], glow: "rgba(239, 68, 68, 0.35)" }, // Đỏ
-  { head: "#eab308", body1: "#ca8a04", pattern: ["#eab308", "#ca8a04"], glow: "rgba(234, 179, 8, 0.35)" }, // Vàng
-  { head: "#a855f7", body1: "#7e22ce", pattern: ["#a855f7", "#7e22ce"], glow: "rgba(168, 85, 247, 0.35)" }, // Tím
-  { head: "#f97316", body1: "#c2410c", pattern: ["#f97316", "#c2410c"], glow: "rgba(249, 115, 22, 0.35)" }, // Cam
-  { head: "#ec4899", body1: "#be185d", pattern: ["#ec4899", "#be185d"], glow: "rgba(236, 72, 153, 0.35)" }, // Hồng
+  // 1. Việt Nam 🇻🇳 (Cờ đỏ sao vàng)
+  { head: "#ef4444", pattern: ["#ef4444", "#facc15", "#ef4444"], special: "star", name: "Việt Nam 🇻🇳" },
+  // 2. Cầu Vồng 🌈 (Rainbow Slither)
+  { head: "#ef4444", pattern: ["#ef4444", "#f97316", "#facc15", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7"], name: "Cầu Vồng 🌈" },
+  // 3. Ong Vàng 🐝 (Bumblebee sọc đen vàng)
+  { head: "#fbbf24", pattern: ["#fbbf24", "#fbbf24", "#18181b", "#18181b"], name: "Ong Vàng 🐝" },
+  // 4. Dưa Hấu 🍉 (Watermelon sọc xanh đỏ)
+  { head: "#15803d", pattern: ["#16a34a", "#22c55e", "#ef4444", "#dc2626"], name: "Dưa Hấu 🍉" },
+  // 5. Kẹo Bạc Hà 🍬 (Candy Cane trắng đỏ)
+  { head: "#ef4444", pattern: ["#ef4444", "#ffffff", "#ef4444", "#ffffff"], name: "Kẹo Bạc Hà 🍬" },
+  // 6. Băng Tuyết ❄️ (Ice Frost xanh băng)
+  { head: "#38bdf8", pattern: ["#38bdf8", "#7dd3fc", "#e0f2fe", "#0284c7"], name: "Băng Tuyết ❄️" },
+  // 7. Hắc Ám 🥷 (Shadow Ninja đen tím)
+  { head: "#1e1e24", pattern: ["#18181b", "#27272a", "#7c3aed", "#18181b"], special: "ninja", name: "Hắc Ám 🥷" },
+  // 8. Hoàng Gia 👑 (Royal Gold vàng kim)
+  { head: "#eab308", pattern: ["#eab308", "#ca8a04", "#fef08a", "#eab308"], special: "crown", name: "Hoàng Gia 👑" },
+  // 9. Lửa Đỏ 🔥 (Fire Flame đỏ cam vàng)
+  { head: "#dc2626", pattern: ["#dc2626", "#ea580c", "#f59e0b", "#f97316"], name: "Lửa Đỏ 🔥" },
+  // 10. Độc Dược 🧪 (Toxic Neon tím xanh lá)
+  { head: "#9333ea", pattern: ["#9333ea", "#22c55e", "#7e22ce", "#16a34a"], name: "Độc Dược 🧪" },
+  // 11. Captain 🇺🇸 (Cờ Mỹ xanh trắng đỏ)
+  { head: "#2563eb", pattern: ["#2563eb", "#ffffff", "#dc2626", "#ffffff"], name: "Captain 🇺🇸" },
+  // 12. Xanh Lục 🌱 (Classic Green Slither gốc)
+  { head: "#22c55e", pattern: ["#22c55e", "#16a34a", "#22c55e", "#15803d"], name: "Xanh Lục 🌱" }
 ];
 
 const rooms = new Map();
@@ -604,6 +621,10 @@ function tickRoom(room) {
       player.speed = player.baseSpeed;
     }
 
+    // Lưu vị trí cũ trước khi di chuyển để tính toán Continuous Collision Detection (chống đâm xuyên)
+    player.prevX = player.x;
+    player.prevY = player.y;
+
     // Di chuyển đầu giun
     player.x += Math.cos(player.angle) * player.speed;
     player.y += Math.sin(player.angle) * player.speed;
@@ -638,54 +659,98 @@ function tickRoom(room) {
     }
   }
 
-  // 2. Kiểm tra va chạm giữa các con giun (Snake vs Snake) - Tối ưu Bounding Box
+  // 2. Kiểm tra va chạm giữa các con giun (Snake vs Snake) - Chuẩn xác 100%, chống xuyên thấu
   for (const p1 of playersList) {
     if (!p1.alive) continue;
 
     for (const p2 of playersList) {
       if (!p2.alive || p1.id === p2.id) continue;
 
-      // Nhanh: Nếu 2 đầu quá xa nhau so với chiều dài thân của p2, bỏ qua ngay để nhẹ CPU!
-      const p2BodyLen = p2.body.length;
-      const maxReach = p2BodyLen * 7 + 100;
       const dxHead = p1.x - p2.x;
       const dyHead = p1.y - p2.y;
-      if (dxHead * dxHead + dyHead * dyHead > maxReach * maxReach) continue;
+      const headDistSq = dxHead * dxHead + dyHead * dyHead;
 
+      // 2.1. Va chạm đối đầu (Head-to-head collision): con nào nhỏ hơn thì chết
+      const headHitRadius = (p1.radius + p2.radius) * 0.85;
+      if (headDistSq < headHitRadius * headHitRadius) {
+        if (p1.score < p2.score) {
+          killPlayer(room, p1);
+          p2.kills += 1;
+          p2.score += 40;
+          break;
+        } else if (p2.score < p1.score) {
+          killPlayer(room, p2);
+          p1.kills += 1;
+          p1.score += 40;
+          continue;
+        } else {
+          killPlayer(room, p1);
+          killPlayer(room, p2);
+          break;
+        }
+      }
+
+      // 2.2. Kiểm tra khoảng cách nhanh với thân của p2
       const body = p2.body;
-      const hitRadius = p1.radius + (p2.radius * 0.7);
+      const p2BodyLen = body.length;
+      if (p2BodyLen === 0) continue;
+
+      const maxReach = p2BodyLen * 7 + 120;
+      if (headDistSq > maxReach * maxReach) continue;
+
+      // Bán kính va chạm chuẩn xác (đầu p1 chạm vào bất kỳ đốt thân nào của p2)
+      const hitRadius = (p1.radius + p2.radius) * 0.82;
       const hitRadiusSq = hitRadius * hitRadius;
 
-      // Chỉ check từ đốt thứ 3 trở đi để tránh va chạm mép đầu
-      for (let s = 3; s < body.length; s += 2) {
+      // Điểm giữa (midpoint) để chống đâm xuyên lọt kẽ khi boost tốc độ cao
+      const midX = p1.prevX !== undefined ? (p1.prevX + p1.x) * 0.5 : p1.x;
+      const midY = p1.prevY !== undefined ? (p1.prevY + p1.y) * 0.5 : p1.y;
+
+      let collided = false;
+      // Quét toàn bộ đốt thân từ đốt số 1 trở đi (tuyệt đối không bỏ qua đốt nào)
+      for (let s = 1; s < p2BodyLen; s++) {
         const seg = body[s];
+        // Điểm đầu hiện tại
         const dx = p1.x - seg.x;
         const dy = p1.y - seg.y;
         if (dx * dx + dy * dy < hitRadiusSq) {
-          killPlayer(room, p1);
-          p2.kills += 1;
-          p2.score += 50; // Thưởng điểm hạ gục
-
-          // Bắn sự kiện nếu p2 là người chơi thật có UID và nhóm
-          if (!p2.isBot && p2.uid && p2.threadId) {
-            const now = Date.now();
-            if (!p2.lastKillNotif || (now - p2.lastKillNotif > 12000)) {
-              p2.lastKillNotif = now;
-              pushGameEvent({
-                type: "kill",
-                killerUid: p2.uid,
-                killerName: p2.name,
-                victimName: p1.name || "Một con sâu",
-                kills: p2.kills,
-                score: Math.floor(p2.score),
-                threadId: p2.threadId,
-                threadType: p2.threadType !== undefined ? p2.threadType : 1,
-                botKey: p2.botKey || "main"
-              });
-            }
-          }
+          collided = true;
           break;
         }
+
+        // Điểm giữa đường đi của tick này (Continuous Collision)
+        const dmx = midX - seg.x;
+        const dmy = midY - seg.y;
+        if (dmx * dmx + dmy * dmy < hitRadiusSq) {
+          collided = true;
+          break;
+        }
+      }
+
+      if (collided) {
+        killPlayer(room, p1);
+        p2.kills += 1;
+        p2.score += 50; // Thưởng điểm hạ gục
+
+        // Bắn sự kiện nếu p2 là người chơi thật có UID và nhóm
+        if (!p2.isBot && p2.uid && p2.threadId) {
+          const now = Date.now();
+          if (!p2.lastKillNotif || (now - p2.lastKillNotif > 12000)) {
+            p2.lastKillNotif = now;
+            pushGameEvent({
+              type: "kill",
+              killerUid: p2.uid,
+              killerName: p2.name,
+              victimName: p1.name || "Một con sâu",
+              kills: p2.kills,
+              score: Math.floor(p2.score),
+              threadId: p2.threadId,
+              threadType: p2.threadType !== undefined ? p2.threadType : 1,
+              botKey: p2.botKey || "main"
+            });
+          }
+        }
+        break; // p1 đã chết, dừng kiểm tra với các người chơi khác
       }
     }
   }
