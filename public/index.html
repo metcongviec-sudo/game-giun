@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ruaxbonz.com</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Chakra+Petch:wght@600;700;800&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Canvas chính của Game -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD Góc trên bên trái: Player Profile -->
+  <div id="playerHud" class="hud-profile-pill">
+    <div class="hud-meta">
+      <span id="hudName" class="hud-player-name">Chiến Thần</span>
+      <span id="hudKillsText" class="hud-kills">💀 <span id="hudKillsVal">0</span> kills</span>
+    </div>
+  </div>
+
+  <!-- HUD Góc trên bên phải: Leaderboard Chuẩn Slither.io -->
+  <div id="leaderboard" class="slither-leaderboard">
+    <div class="lb-header">
+      <span class="lb-title">Leaderboard</span>
+      <button id="btnSoundToggle" class="btn-sound" title="Âm thanh">🔊</button>
+    </div>
+    <div id="lbList" class="lb-list">
+      <!-- Top 10 players populated by JS -->
+    </div>
+  </div>
+
+  <!-- HUD Góc dưới bên trái: Chiều dài & Hạng chuẩn Slither.io -->
+  <div id="slitherStats" class="slither-bottom-left">
+    <div class="slither-stat-line">
+      <span class="slither-label">Your length:</span>
+      <span id="hudScoreVal" class="slither-val score-glow">10</span>
+    </div>
+    <div class="slither-stat-line">
+      <span class="slither-label">Your rank:</span>
+      <span id="hudRankBadge" class="slither-val">1</span>
+      <span class="slither-dim">of</span>
+      <span id="hudTotalPlayers" class="slither-val">1</span>
+    </div>
+  </div>
+
+  <!-- Mini Radar Map góc dưới bên phải chuẩn Slither.io -->
+  <div id="miniMapContainer" class="mini-map-wrap">
+    <canvas id="miniMapCanvas" width="94" height="94"></canvas>
+  </div>
+
+  <!-- Thông báo Combo Kill / Hạ gục nổi giữa màn hình -->
+  <div id="killBanner" class="kill-banner">
+    <div id="killBannerText" class="kill-banner-text">KILL STREAK!</div>
+  </div>
+
+  <!-- Vùng điều khiển cảm ứng cho Điện thoại -->
+  <div id="touchControls">
+    <!-- Joystick ảo bên trái -->
+    <div id="joystickZone">
+      <div id="joystickBase">
+        <div class="joystick-ring"></div>
+        <div id="joystickThumb">
+          <div class="thumb-core"></div>
+        </div>
+      </div>
+      <div class="touch-hint left-hint">Chạm & rê để lái giun</div>
+    </div>
+
+    <!-- Nút Tăng tốc Boost bên phải -->
+    <div id="boostZone">
+      <button id="btnBoost" class="boost-btn">
+        <div class="boost-glow-aura"></div>
+        <div class="boost-core">
+          <span class="boost-icon">⚡</span>
+          <span class="boost-text">BOOST</span>
+        </div>
+      </button>
+      <div class="touch-hint right-hint">Giữ để phóng nhanh</div>
+    </div>
+  </div>
+
+  <!-- MÀN HÌNH CHÀO MỪNG / LOBBY SLITHER.IO -->
+  <div id="welcomeModal" class="modal-backdrop">
+    <div class="modal-glass-card slither-lobby-card">
+      <div class="slither-logo-wrap">
+        <div class="slither-logo-text">ruaxbonz<span class="logo-accent">.com</span></div>
+        <div class="slither-logo-sub">ĐẠI CHIẾN CON GIUN VIP</div>
+      </div>
+
+      <div class="player-card-hero">
+        <div class="hero-details">
+          <div id="previewName" class="hero-name">Đang nhận diện tài khoản...</div>
+          <div id="previewRoom" class="hero-room">📍 Đấu trường chung ruaxbonz.com</div>
+        </div>
+      </div>
+
+      <!-- Chọn Skin Slither.io Striped Segments -->
+      <div class="skin-selector-wrap">
+        <div class="skin-label">CHỌN SKIN CON GIUN:</div>
+        <div id="skinList" class="skin-list">
+          <!-- Skin color circles -->
+        </div>
+      </div>
+
+      <!-- Input nhập tên nếu không qua link bot -->
+      <div class="input-wrap" id="nameInputWrap" style="display:none;">
+        <input type="text" id="customNameInput" placeholder="Nhập biệt danh của bạn..." maxlength="20">
+      </div>
+
+      <button id="btnStartGame" class="btn-battle-launch btn-slither-play">
+        <span class="btn-content">PLAY / VÀO CHIẾN 🚀</span>
+        <div class="btn-shimmer"></div>
+      </button>
+
+      <div class="lobby-footer-tips">
+        🎮 Rê ngón tay hoặc chuột để lái • Nhấn giữ để tăng tốc!
+      </div>
+    </div>
+  </div>
+
+  <!-- MÀN HÌNH TỬ TRẬN / GAME OVER SLITHER.IO -->
+  <div id="deathModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-glass-card death-card slither-death-card">
+      <div class="death-skull">💀</div>
+      <h2 class="death-title">BẠN ĐÃ TỬ TRẬN!</h2>
+      <p class="death-sub">Con giun của bạn đã hóa thành năng lượng phát sáng!</p>
+
+      <div class="stats-grid">
+        <div class="stat-pill">
+          <span class="pill-label">Chiều dài cuối</span>
+          <span id="deathScore" class="pill-val score-glow">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="pill-label">Hạ gục</span>
+          <span id="deathKills" class="pill-val">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="pill-label">Hạng cao nhất</span>
+          <span id="deathRank" class="pill-val">#1</span>
+        </div>
+      </div>
+
+      <button id="btnRespawn" class="btn-battle-launch btn-respawn btn-slither-play">
+        <span class="btn-content">PLAY AGAIN / HỒI SINH ⚡</span>
+        <div class="btn-shimmer"></div>
+      </button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
