@@ -39,13 +39,15 @@ function pushGameEvent(evt) {
   }
 }
 
-// Endpoint lấy và tiêu thụ sự kiện (Chỉ 1 bot xử lý 1 lần duy nhất)
+// Endpoint lấy và tiêu thụ sự kiện (Chỉ bot tương ứng xử lý, tránh cướp event của nhau)
 app.post("/api/consume-game-events", (req, res) => {
+  const filterBotKey = String(req.body?.botKey || "main").trim();
   const unconsumed = [];
   const now = Date.now();
 
   for (const evt of gameEventsQueue) {
-    if (!evt.consumed && (now - evt.ts < 45000)) {
+    const evtBotKey = String(evt.botKey || "main").trim();
+    if (!evt.consumed && evtBotKey === filterBotKey && (now - evt.ts < 60000)) {
       evt.consumed = true;
       unconsumed.push(evt);
     }
@@ -209,11 +211,12 @@ app.get("/play/:token", (req, res) => {
 
 // API tạo session ngắn từ Bot Zalo - TỰ HỦY LINK CŨ CỦA NGƯỜI ĐÓ
 app.post("/api/create-session", (req, res) => {
-  const { uid, name, roomName, threadId, threadType } = req.body || {};
+  const { uid, name, roomName, threadId, threadType, botKey } = req.body || {};
   const cleanName = String(name || "Chiến Thần").trim().slice(0, 25);
   const cleanUid = String(uid || "").trim();
   const cleanThreadId = String(threadId || "").trim();
   const cleanThreadType = threadType !== undefined ? Number(threadType) : 1;
+  const cleanBotKey = String(botKey || "main").trim();
 
   // 1. Tự hủy tất cả link cũ của UID này nếu họ gõ lại lệnh !giun
   if (cleanUid) {
@@ -237,6 +240,7 @@ app.post("/api/create-session", (req, res) => {
     roomName: roomName || "ruaxbonz.com",
     threadId: cleanThreadId,
     threadType: cleanThreadType,
+    botKey: cleanBotKey,
     ts: Date.now(),
     used: false
   });
@@ -441,6 +445,7 @@ function spawnPlayer(room, ws, playerInfo) {
     avatar: playerInfo.avatar || "",
     threadId: playerInfo.threadId || "",
     threadType: playerInfo.threadType !== undefined ? playerInfo.threadType : 1,
+    botKey: playerInfo.botKey || "main",
     x: startX,
     y: startY,
     angle: startAngle,
@@ -663,7 +668,8 @@ function tickRoom(room) {
                 kills: p2.kills,
                 score: Math.floor(p2.score),
                 threadId: p2.threadId,
-                threadType: p2.threadType !== undefined ? p2.threadType : 1
+                threadType: p2.threadType !== undefined ? p2.threadType : 1,
+                botKey: p2.botKey || "main"
               });
             }
           }
@@ -709,7 +715,8 @@ function tickRoom(room) {
             score: topPlayer.score,
             kills: topPlayer.kills,
             threadId: topPlayer.threadId,
-            threadType: topPlayer.threadType !== undefined ? topPlayer.threadType : 1
+            threadType: topPlayer.threadType !== undefined ? topPlayer.threadType : 1,
+            botKey: topPlayer.botKey || "main"
           });
         }
       }
@@ -769,6 +776,7 @@ wss.on("connection", (ws) => {
         let playerUid = "";
         let playerThreadId = "";
         let playerThreadType = 1;
+        let playerBotKey = "main";
 
         // 1. Nhận diện từ Session Code ngắn & TỰ HỦY LINK
         if (msg.code) {
@@ -779,6 +787,7 @@ wss.on("connection", (ws) => {
             playerUid = s.uid || "";
             playerThreadId = s.threadId || "";
             playerThreadType = s.threadType !== undefined ? Number(s.threadType) : 1;
+            playerBotKey = s.botKey || "main";
             // Đánh dấu link này đã sử dụng để tự hủy ngay
             s.used = true;
             // Xóa vĩnh viễn sau 10 giây để người khác bấm vào link sẽ ra 404
@@ -794,6 +803,7 @@ wss.on("connection", (ws) => {
             playerUid = verified.uid || "";
             playerThreadId = verified.threadId || "";
             playerThreadType = verified.threadType !== undefined ? Number(verified.threadType) : 1;
+            playerBotKey = verified.botKey || "main";
             usedTokens.add(msg.token);
           }
         }
@@ -805,6 +815,7 @@ wss.on("connection", (ws) => {
           uid: playerUid,
           threadId: playerThreadId,
           threadType: playerThreadType,
+          botKey: playerBotKey,
           skin: msg.skin || null
         };
 
