@@ -270,6 +270,65 @@ const SNAKE_COLORS = [
 
 const rooms = new Map();
 
+const TARGET_BOT_COUNT = 16;
+
+const BOT_NAMES = [
+  "Bé Giun 🐛", "Giun Nhí 👶", "Sâu Con 🍎", "Bé Na 🐍", "Giun Đất 🌱",
+  "Sâu Bướm 🦋", "Bé Đậu 🥜", "Bé Tèo 👦", "Giun Sọc 🎨", "Sâu Róm 🐛",
+  "Bé Xíu 🐣", "Bé Mập 🍔", "Giun Tốc Độ ⚡", "Sâu Siêu Quậy 😜", "Bé Bo 🍼",
+  "Giun Cầu Vồng 🌈", "Bé Heo 🐷", "Sâu Lười 😴", "Bé Bí Đỏ 🎃", "Giun Tí Hon 🐜"
+];
+
+function spawnBotWorm(room) {
+  const botId = "bot_" + (room.nextBotId++);
+  const name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+  const colorScheme = SNAKE_COLORS[Math.floor(Math.random() * SNAKE_COLORS.length)];
+
+  const spawnAngle = Math.random() * Math.PI * 2;
+  const spawnDist = Math.random() * (MAP_RADIUS * 0.75);
+  const startX = Math.floor(MAP_CENTER + Math.cos(spawnAngle) * spawnDist);
+  const startY = Math.floor(MAP_CENTER + Math.sin(spawnAngle) * spawnDist);
+  const startAngle = Math.random() * Math.PI * 2;
+
+  const initialScore = 8 + Math.floor(Math.random() * 15);
+  const initialLength = Math.floor(12 + initialScore * 0.6);
+
+  const bot = {
+    id: botId,
+    ws: null,
+    isBot: true,
+    uid: "",
+    name,
+    avatar: "",
+    x: startX,
+    y: startY,
+    angle: startAngle,
+    targetAngle: startAngle,
+    speed: 3.4 + Math.random() * 0.6,
+    baseSpeed: 3.4 + Math.random() * 0.6,
+    boostSpeed: 6.8,
+    isBoosting: false,
+    radius: 14,
+    score: initialScore,
+    kills: 0,
+    alive: true,
+    color: colorScheme,
+    body: [],
+    nextDecisionTime: Date.now() + Math.random() * 1500,
+    boostUntil: 0
+  };
+
+  for (let i = 0; i < initialLength; i++) {
+    bot.body.push({
+      x: startX - Math.cos(startAngle) * i * 6,
+      y: startY - Math.sin(startAngle) * i * 6
+    });
+  }
+
+  room.players.set(bot.id, bot);
+  return bot;
+}
+
 function getOrCreateRoom(roomId, roomName = "Đại Chiến Giun") {
   if (!rooms.has(roomId)) {
     const room = {
@@ -278,15 +337,21 @@ function getOrCreateRoom(roomId, roomName = "Đại Chiến Giun") {
       players: new Map(),
       foods: [],
       nextFoodId: 1,
+      nextBotId: 1,
       lastTick: Date.now()
     };
 
     // Tạo mồi ban đầu
-    spawnInitialFoods(room, 130);
+    spawnInitialFoods(room, 150);
 
     // Bắt đầu vòng lặp tick cho phòng
     room.interval = setInterval(() => tickRoom(room), TICK_INTERVAL);
     rooms.set(roomId, room);
+
+    // Sinh đàn giun con ban đầu
+    for (let i = 0; i < TARGET_BOT_COUNT; i++) {
+      spawnBotWorm(room);
+    }
   }
   return rooms.get(roomId);
 }
@@ -377,6 +442,16 @@ function killPlayer(room, player) {
     );
   }
 
+  // Nếu là giun con (bot), tự động hồi sinh con giun con mới sau 2.5s
+  if (player.isBot) {
+    setTimeout(() => {
+      if (room.players.has(player.id)) {
+        room.players.delete(player.id);
+      }
+      spawnBotWorm(room);
+    }, 2500);
+  }
+
   // Gửi thông báo chết cho chính người chơi
   if (player.ws && player.ws.readyState === WebSocket.OPEN) {
     player.ws.send(JSON.stringify({
@@ -388,15 +463,64 @@ function killPlayer(room, player) {
 }
 
 function tickRoom(room) {
-  // Duy trì lượng mồi tối ưu (130 hạt mồi vừa đẹp bản đồ, nhẹ mạng mượt mà)
-  if (room.foods.length < 130) {
+  // Duy trì lượng mồi tối ưu (150 hạt mồi vừa đẹp bản đồ, nhẹ mạng mượt mà)
+  if (room.foods.length < 150) {
     spawnFood(room);
   }
 
-  const playersList = Array.from(room.players.values()).filter(p => p.alive);
+  // Duy trì lượng đàn giun con (16 con giun con) luôn đông đúc náo nhiệt
+  const allCurrentPlayers = Array.from(room.players.values());
+  const activeBots = allCurrentPlayers.filter(p => p.isBot && p.alive).length;
+  if (activeBots < TARGET_BOT_COUNT) {
+    spawnBotWorm(room);
+  }
+
+  const playersList = allCurrentPlayers.filter(p => p.alive);
 
   // 1. Cập nhật vị trí và góc lượn của từng con giun chuẩn Slither physics
   for (const player of playersList) {
+    // Trí thông minh nhân tạo (AI) cho đàn giun con
+    if (player.isBot) {
+      const now = Date.now();
+      const distFromCenter = Math.hypot(player.x - MAP_CENTER, player.y - MAP_CENTER);
+
+      // 1. Tránh xa rìa tường bản đồ
+      if (distFromCenter > MAP_RADIUS - 240) {
+        player.targetAngle = Math.atan2(MAP_CENTER - player.y, MAP_CENTER - player.x);
+      } else if (now > player.nextDecisionTime) {
+        player.nextDecisionTime = now + 1200 + Math.random() * 1800;
+
+        // 2. Tìm hạt mồi gần nhất trong bán kính 350px để lượn lại đớp
+        let closestFood = null;
+        let minDistSq = 350 * 350;
+        const searchCount = Math.min(room.foods.length, 35);
+        for (let i = 0; i < searchCount; i++) {
+          const f = room.foods[i];
+          const dx = f.x - player.x;
+          const dy = f.y - player.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < minDistSq) {
+            minDistSq = distSq;
+            closestFood = f;
+          }
+        }
+
+        if (closestFood) {
+          player.targetAngle = Math.atan2(closestFood.y - player.y, closestFood.x - player.x);
+        } else {
+          // Lượn ngẫu nhiên nhẹ nhàng
+          player.targetAngle += (Math.random() - 0.5) * 1.5;
+        }
+
+        // Thi thoảng giun con bứt tốc nếu đủ điểm
+        if (Math.random() < 0.2 && player.score > 18) {
+          player.boostUntil = now + 700 + Math.random() * 1000;
+        }
+      }
+
+      player.isBoosting = Boolean(player.boostUntil && now < player.boostUntil && player.score > 15);
+    }
+
     let diff = player.targetAngle - player.angle;
     while (diff < -Math.PI) diff += Math.PI * 2;
     while (diff > Math.PI) diff -= Math.PI * 2;
