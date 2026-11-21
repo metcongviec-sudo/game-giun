@@ -234,35 +234,30 @@
     }
   }
 
-  // Chặn truy cập trực tiếp: Không có token hợp lệ -> Đẩy ngay sang 404
-  if (!token) {
-    window.location.replace("https://ruaxbonz.com/404");
-    return;
-  }
-
   let playerProfile = {
     name: "Chiến Thần",
     roomId: "ruaxbonz_arena",
     roomName: "Đấu trường ruaxbonz.com"
   };
 
-  // Xác thực token với server
-  fetch(`/api/verify-token?token=${encodeURIComponent(token)}`)
-    .then(res => res.json())
-    .then(data => {
-      if (!data.success || !data.player) {
-        window.location.replace("https://ruaxbonz.com/404");
-        return;
-      }
-      playerProfile.name = data.player.name || "Chiến Thần";
-      playerProfile.roomId = "ruaxbonz_arena";
-      playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
-
-      updateProfileUI();
-    })
-    .catch(() => {
-      window.location.replace("https://ruaxbonz.com/404");
-    });
+  // Xác thực token với server nếu có
+  if (token) {
+    fetch(`/api/verify-token?token=${encodeURIComponent(token)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.player) {
+          playerProfile.name = data.player.name || "Chiến Thần";
+          playerProfile.roomId = "ruaxbonz_arena";
+          playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
+        }
+        updateProfileUI();
+      })
+      .catch(() => {
+        updateProfileUI();
+      });
+  } else {
+    updateProfileUI();
+  }
 
   function updateProfileUI() {
     if (previewName) previewName.textContent = playerProfile.name;

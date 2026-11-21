@@ -16,29 +16,23 @@ const TICK_RATE = 25; // 25 fps ticks for smooth physics
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 
-// 1. Lọc link gốc: Bắt buộc phải có token hợp lệ từ bot Zalo mới được vào
-// Hỗ trợ cả query ?token=... và clean path /play/:token
-app.get(["/", "/index.html", "/play/:token", "/p/:token"], (req, res, next) => {
-  const token = (req.params.token || req.query.token || "").trim();
-  if (!token) {
-    return res.redirect("https://ruaxbonz.com/404");
-  }
-  const decoded = verifyGameToken(token);
-  if (!decoded) {
-    return res.redirect("https://ruaxbonz.com/404");
-  }
-  if (req.params.token) {
-    return res.sendFile(path.join(__dirname, "public", "index.html"));
-  }
+// Log incoming requests for easy debugging
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
 });
 
-// Serve static frontend
+// Serve static frontend FIRST so /style.css, /game.js, etc. never get intercepted
 app.use(express.static(path.join(__dirname, "public")));
+
+// Route game: Hỗ trợ cả /, /play/:token, /p/:token
+app.get(["/", "/play/:token", "/p/:token", "/play", "/p"], (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 // API verify token endpoint (for frontend inspection)
 app.get("/api/verify-token", (req, res) => {
-  const token = req.query.token;
+  const token = (req.query.token || "").trim();
   if (!token) {
     return res.json({ success: false, message: "Thiếu token" });
   }
