@@ -223,39 +223,66 @@
 
   const boostParticles = [];
 
-  // Parse Game Token from URL (Hỗ trợ cả query ?token=... và clean path /play/TOKEN)
+  // Parse Game Token / Session Code from URL
   const urlParams = new URLSearchParams(window.location.search);
-  let token = urlParams.get("token") || "";
+  let sessionCode = (urlParams.get("c") || urlParams.get("code") || "").trim();
+  let token = (urlParams.get("token") || "").trim();
 
-  if (!token) {
-    const parts = window.location.pathname.split("/").filter(Boolean);
-    if (parts.length >= 2 && (parts[0] === "play" || parts[0] === "p")) {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  if (parts.length >= 2) {
+    if (parts[0] === "p") {
+      sessionCode = parts[1];
+    } else if (parts[0] === "play") {
       token = parts[1];
     }
   }
 
-  // Tự động khôi phục token từ localStorage nếu truy cập thẳng vào trang chủ
-  if (!token) {
+  // Tự động khôi phục danh tính từ localStorage nếu vào trực tiếp trang chủ
+  if (!sessionCode && !token) {
     try {
+      sessionCode = localStorage.getItem("ruaxbonz_code") || "";
       token = localStorage.getItem("ruaxbonz_token") || "";
     } catch (_) {}
   } else {
     try {
-      localStorage.setItem("ruaxbonz_token", token);
+      if (sessionCode) localStorage.setItem("ruaxbonz_code", sessionCode);
+      if (token) localStorage.setItem("ruaxbonz_token", token);
     } catch (_) {}
   }
 
+  const cachedLastName = (() => {
+    try { return localStorage.getItem("ruaxbonz_player_name") || ""; } catch (_) { return ""; }
+  })();
+
   let playerProfile = {
-    name: "Đang nhận diện danh tính...",
+    name: cachedLastName || "Chiến Thần",
     roomId: "ruaxbonz_arena",
     roomName: "Đấu trường ruaxbonz.com",
     uid: ""
   };
 
-  let hasValidAuth = false;
+  let isZaloVerified = Boolean(cachedLastName);
 
-  // Xác thực token với server để lấy chính xác Tên Zalo thật
-  if (token) {
+  // 1. Kiểm tra session code ngắn trước (nếu có)
+  if (sessionCode) {
+    fetch(`/api/get-session?code=${encodeURIComponent(sessionCode)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.player && data.player.name) {
+          playerProfile.name = String(data.player.name).trim();
+          playerProfile.uid = data.player.uid || "";
+          playerProfile.roomId = "ruaxbonz_arena";
+          playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
+          isZaloVerified = true;
+          try {
+            localStorage.setItem("ruaxbonz_player_name", playerProfile.name);
+          } catch (_) {}
+        }
+        updateProfileUI();
+      })
+      .catch(() => updateProfileUI());
+  } else if (token) {
+    // 2. Kiểm tra token mã hóa nếu không có session code
     fetch(`/api/verify-token?token=${encodeURIComponent(token)}`)
       .then(res => res.json())
       .then(data => {
@@ -264,53 +291,37 @@
           playerProfile.uid = data.player.uid || "";
           playerProfile.roomId = "ruaxbonz_arena";
           playerProfile.roomName = data.player.roomName || "Đấu trường ruaxbonz.com";
-          hasValidAuth = true;
+          isZaloVerified = true;
           try {
             localStorage.setItem("ruaxbonz_player_name", playerProfile.name);
           } catch (_) {}
-        } else {
-          hasValidAuth = false;
         }
         updateProfileUI();
       })
-      .catch(() => {
-        try {
-          const cachedName = localStorage.getItem("ruaxbonz_player_name");
-          if (cachedName) {
-            playerProfile.name = cachedName;
-            hasValidAuth = true;
-          }
-        } catch (_) {}
-        updateProfileUI();
-      });
+      .catch(() => updateProfileUI());
   } else {
-    hasValidAuth = false;
     updateProfileUI();
   }
 
   function updateProfileUI() {
-    if (hasValidAuth && playerProfile.name) {
-      if (previewName) previewName.textContent = playerProfile.name;
-      if (previewRoom) previewRoom.textContent = `📍 ${playerProfile.roomName}`;
-      if (hudName) hudName.textContent = playerProfile.name;
-      if (authStatusNotice) authStatusNotice.style.display = "none";
-      if (btnStartGame) {
-        btnStartGame.disabled = false;
-        btnStartGame.classList.remove("btn-disabled");
-        const btnContent = btnStartGame.querySelector(".btn-content");
-        if (btnContent) btnContent.textContent = "PLAY / VÀO CHIẾN 🚀";
-      }
-    } else {
-      if (previewName) previewName.textContent = "Chưa nhận diện danh tính";
-      if (authStatusNotice) {
+    if (previewName) previewName.textContent = playerProfile.name;
+    if (previewRoom) previewRoom.textContent = `📍 ${playerProfile.roomName}`;
+    if (hudName) hudName.textContent = playerProfile.name;
+
+    // Không bao giờ khóa người chơi!
+    if (btnStartGame) {
+      btnStartGame.disabled = false;
+      btnStartGame.classList.remove("btn-disabled");
+      const btnContent = btnStartGame.querySelector(".btn-content");
+      if (btnContent) btnContent.textContent = "PLAY / VÀO CHIẾN 🚀";
+    }
+
+    if (authStatusNotice) {
+      if (!isZaloVerified) {
         authStatusNotice.style.display = "block";
-        authStatusNotice.innerHTML = "⚠️ <b>Chưa có link xác thực tài khoản!</b><br>Vui lòng vào nhóm Zalo gõ lệnh <code>!giun</code> để bot cấp link xác thực theo đúng tên nick của bạn!";
-      }
-      if (btnStartGame) {
-        btnStartGame.disabled = true;
-        btnStartGame.classList.add("btn-disabled");
-        const btnContent = btnStartGame.querySelector(".btn-content");
-        if (btnContent) btnContent.textContent = "GÕ !GIUN TRONG ZALO ĐỂ VÀO ⚠️";
+        authStatusNotice.innerHTML = "💡 Muốn hiển thị <b>tên nick Zalo thật</b>? Vào nhóm Zalo gõ lệnh <code>!giun</code> để bot cấp link xác thực riêng nhé!";
+      } else {
+        authStatusNotice.style.display = "none";
       }
     }
   }
@@ -368,11 +379,6 @@
   // WEBSOCKET COMMUNICATION
   // ══════════════════════════════════════════════════
   function connectWebSocket() {
-    if (!hasValidAuth || !token) {
-      updateProfileUI();
-      return;
-    }
-
     initAudio();
     welcomeModal.style.display = "none";
 
@@ -384,7 +390,9 @@
     ws.onopen = () => {
       ws.send(JSON.stringify({
         type: "join",
+        code: sessionCode,
         token: token,
+        name: playerProfile.name,
         skin: SKINS[selectedSkinIdx]
       }));
     };

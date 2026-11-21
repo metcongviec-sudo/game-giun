@@ -8,6 +8,9 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const PORT = process.env.PORT || 3150;
 const MAP_SIZE = 4000;
 const MAP_CENTER = 2000;
@@ -15,6 +18,17 @@ const MAP_RADIUS = 1850;
 const TICK_RATE = 20; // 20 fps ticks (50ms interval) - Tối ưu băng thông & cực nhẹ cho điện thoại
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
+
+// Bộ nhớ lưu các phiên chơi tạo từ Bot Zalo (Session ngắn 6 ký tự)
+const activeSessions = new Map();
+
+// Tự động dọn dẹp session quá 24h
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, s] of activeSessions.entries()) {
+    if (now - s.ts > 86400000) activeSessions.delete(code);
+  }
+}, 3600000);
 
 // Log incoming requests for easy debugging
 app.use((req, res, next) => {
@@ -25,12 +39,50 @@ app.use((req, res, next) => {
 // Serve static frontend FIRST so /style.css, /game.js, etc. never get intercepted
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route game: Hỗ trợ cả /, /play/:token, /p/:token
+// Route game: Hỗ trợ cả /, /play/:token, /p/:token, /p/:code
 app.get(["/", "/play/:token", "/p/:token", "/play", "/p"], (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// API verify token endpoint (for frontend inspection)
+// API tạo session ngắn từ Bot Zalo
+app.post("/api/create-session", (req, res) => {
+  const { uid, name, roomName } = req.body || {};
+  const cleanName = String(name || "Chiến Thần").trim().slice(0, 25);
+  const cleanUid = String(uid || "").trim();
+
+  // Tạo mã ngắn 6 ký tự ngẫu nhiên
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  activeSessions.set(code.toLowerCase(), {
+    uid: cleanUid,
+    name: cleanName,
+    roomName: roomName || "ruaxbonz.com",
+    ts: Date.now()
+  });
+
+  return res.json({
+    success: true,
+    code,
+    name: cleanName,
+    url: `https://giun.ruaxbonz.com/p/${code}`
+  });
+});
+
+// API lấy thông tin session theo mã ngắn
+app.get("/api/get-session", (req, res) => {
+  const code = String(req.query.code || "").trim().toLowerCase();
+  const session = activeSessions.get(code);
+  if (session) {
+    return res.json({ success: true, player: session });
+  }
+  return res.json({ success: false, message: "Session không tồn tại hoặc đã hết hạn" });
+});
+
+// API verify token endpoint (for backward compatibility)
 app.get("/api/verify-token", (req, res) => {
   const token = (req.query.token || "").trim();
   if (!token) {
@@ -347,8 +399,17 @@ wss.on("connection", (ws) => {
         let playerName = "Chiến Thần";
         let playerUid = "";
 
-        // Bắt buộc lấy đúng tên Zalo thật từ Token mã hóa, không cho phép đổi tên tùy tiện
-        if (msg.token) {
+        // 1. Nhận diện từ Session Code ngắn
+        if (msg.code) {
+          const s = activeSessions.get(String(msg.code).trim().toLowerCase());
+          if (s && s.name) {
+            playerName = String(s.name).trim().slice(0, 25);
+            playerUid = s.uid || "";
+          }
+        }
+
+        // 2. Nhận diện từ Token mã hóa nếu không có session code
+        if (playerName === "Chiến Thần" && msg.token) {
           const verified = verifyGameToken(msg.token);
           if (verified && verified.name) {
             playerName = String(verified.name).trim().slice(0, 25);
