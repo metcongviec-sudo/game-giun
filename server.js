@@ -352,11 +352,11 @@ function spawnBotWorm(room) {
     y: startY,
     angle: startAngle,
     targetAngle: startAngle,
-    speed: 3.4 + Math.random() * 0.6,
-    baseSpeed: 3.4 + Math.random() * 0.6,
+    speed: 3.5 + Math.random() * 0.5,
+    baseSpeed: 3.5 + Math.random() * 0.5,
     boostSpeed: 6.8,
     isBoosting: false,
-    radius: 14,
+    radius: 9.5, // Kích thước ban đầu nhỏ vừa y đúc Slither.io
     score: initialScore,
     kills: 0,
     alive: true,
@@ -427,7 +427,7 @@ function spawnFood(room, x, y, val = 1) {
     id: room.nextFoodId++,
     x: fx,
     y: fy,
-    radius: val > 2 ? 6 + Math.min(val, 6) : 4.5,
+    radius: val > 2 ? 5.2 + Math.min(val, 2.5) : 3.2, // Hạt mồi nhỏ vừa, thanh thoát
     val: val,
     color: colorObj.head
   };
@@ -459,7 +459,7 @@ function spawnPlayer(room, ws, playerInfo) {
     baseSpeed: 3.8,
     boostSpeed: 7.2,
     isBoosting: false,
-    radius: 16,
+    radius: 9.5, // Kích thước ban đầu thon nhỏ vừa chuẩn Slither.io
     score: 10,
     kills: 0,
     alive: true,
@@ -608,8 +608,8 @@ function tickRoom(room) {
     player.x += Math.cos(player.angle) * player.speed;
     player.y += Math.sin(player.angle) * player.speed;
 
-    // Bán kính đầu giun nở to dần theo điểm
-    player.radius = 16 + Math.min(22, Math.sqrt(player.score) * 0.55);
+    // Bán kính đầu giun nở to dần nhẹ nhàng theo điểm chuẩn Slither.io (nhỏ vừa thanh thoát)
+    player.radius = 9.5 + Math.min(15, Math.sqrt(Math.max(0, player.score)) * 0.3);
 
     // Kiểm tra đâm vào rìa tường vòng tròn Slither.io
     const distFromCenter = Math.hypot(player.x - MAP_CENTER, player.y - MAP_CENTER);
@@ -626,7 +626,7 @@ function tickRoom(room) {
     }
 
     // Ăn mồi (Food Collision)
-    const eatRadius = player.radius + 15;
+    const eatRadius = player.radius + 12;
     for (let i = room.foods.length - 1; i >= 0; i--) {
       const food = room.foods[i];
       const dx = player.x - food.x;

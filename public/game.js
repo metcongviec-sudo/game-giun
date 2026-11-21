@@ -719,13 +719,13 @@
       if (!p.renderBody || p.renderBody.length !== (p.body ? p.body.length : 0)) {
         p.renderBody = (p.body || []).map(b => ({ x: b[0], y: b[1] }));
       }
+      const segSpacing = Math.max(4.5, (p.radius || 9.5) * 0.56);
       for (let i = 0; i < p.renderBody.length; i++) {
         const prev = i === 0 ? p : p.renderBody[i - 1];
         const seg = p.renderBody[i];
         const dx = prev.x - seg.x;
         const dy = prev.y - seg.y;
         const dist = Math.hypot(dx, dy);
-        const segSpacing = 7;
         if (dist > segSpacing) {
           const a = Math.atan2(dy, dx);
           seg.x = prev.x - Math.cos(a) * segSpacing;
@@ -741,7 +741,7 @@
       camX = myPlayer.x;
       camY = myPlayer.y;
 
-      const targetZoom = Math.max(0.48, Math.min(1.0, 0.95 / (1 + (myPlayer.score * 0.00045))));
+      const targetZoom = Math.max(0.55, Math.min(1.15, 1.08 / (1 + ((myPlayer.score || 10) * 0.00035))));
       currentZoom += (targetZoom - currentZoom) * 0.04;
     }
 
@@ -831,18 +831,25 @@
 
       const val = food[2];
       const color = food[3] || "#22c55e";
-      const r = val > 2 ? 6 + Math.min(val, 4) : 4.5;
+      const isBig = val > 2;
+      const r = isBig ? 5.2 : 3.2; // Nhỏ vừa chuẩn Slither.io
 
-      // Hạt mồi tròn đơn giản, rõ ràng, không giật lag
+      // Quầng sáng dịu dàng, sáng vừa phải êm mắt
+      ctx.beginPath();
+      ctx.arc(fx, fy, r + 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.fill();
+
+      // Hạt mồi tròn mịn màng
       ctx.beginPath();
       ctx.arc(fx, fy, r, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
 
-      // Điểm tâm mồi trắng nhỏ nhẹ
+      // Điểm tâm mồi sáng dịu
       ctx.beginPath();
       ctx.arc(fx, fy, r * 0.38, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
       ctx.fill();
     }
   }
@@ -879,7 +886,7 @@
       const body = p.renderBody || (p.body || []).map(b => ({ x: b[0], y: b[1] }));
       const skin = p.color || SKINS[0];
       const pattern = skin.pattern || [skin.head || "#22c55e", skin.body1 || "#16a34a"];
-      const radius = p.radius || 15;
+      const radius = p.radius || 9.5;
 
       // Boost particle nhẹ nhàng sau đuôi
       if (p.isBoosting && body.length > 2 && Math.random() < 0.35) {
@@ -889,18 +896,20 @@
           y: tail.y !== undefined ? tail.y : tail[1],
           vx: -Math.cos(p.angle) * 1.5,
           vy: -Math.sin(p.angle) * 1.5,
-          radius: 3,
-          alpha: 0.6,
+          radius: 2.4,
+          alpha: 0.5,
           rgb: "255, 255, 255"
         });
       }
 
-      // 1. Thân con giun - Đơn giản, tròn trịa, lượn mượt 60 FPS
+      // 1. Thân con giun nhỏ vừa, lượn mượt 60 FPS y đúc Slither.io
       for (let i = body.length - 1; i >= 0; i--) {
         const seg = body[i];
         const segX = seg.x !== undefined ? seg.x : seg[0];
         const segY = seg.y !== undefined ? seg.y : seg[1];
-        const segRadius = Math.max(7, radius * (0.7 + 0.3 * (1 - i / body.length)));
+        // Thon gọn dần về phía đuôi chuẩn Slither.io
+        const taper = 0.55 + 0.45 * (1 - i / body.length);
+        const segRadius = Math.max(5.2, radius * taper);
         const colorIdx = i % pattern.length;
         const baseColor = pattern[colorIdx];
 
@@ -911,12 +920,12 @@
         ctx.fill();
 
         // Viền đốt nhẹ giúp thân giun mềm mại rõ nét
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
 
-      // 2. Đầu con giun tròn & 2 mắt tròn xoe hoạt hình đơn giản
+      // 2. Đầu con giun tròn & 2 mắt tròn xoe hoạt hình Slither.io
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
@@ -926,15 +935,15 @@
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fillStyle = skin.head || pattern[0] || "#22c55e";
       ctx.fill();
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // 2 mắt tròn hoạt hình ngộ nghĩnh
-      const eyeOffsetX = radius * 0.32;
-      const eyeOffsetY = radius * 0.42;
-      const eyeRadius = radius * 0.32;
-      const pupilRadius = radius * 0.16;
+      // 2 mắt tròn xoe ngộ nghĩnh Slither.io
+      const eyeOffsetX = radius * 0.26;
+      const eyeOffsetY = radius * 0.44;
+      const eyeRadius = radius * 0.35;
+      const pupilRadius = radius * 0.18;
 
       [-eyeOffsetY, eyeOffsetY].forEach(offsetY => {
         // Tròng trắng
@@ -942,8 +951,8 @@
         ctx.beginPath();
         ctx.arc(eyeOffsetX, offsetY, eyeRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.lineWidth = 1;
         ctx.stroke();
 
         // Con ngươi đen nhìn về phía trước theo hướng đi
@@ -956,13 +965,13 @@
 
       ctx.restore();
 
-      // 3. Tên người chơi nổi trên đầu giun
+      // 3. Tên người chơi nổi trên đầu giun (gọn gàng, nhỏ vừa)
       ctx.save();
-      ctx.font = "bold 13px 'Nunito', 'Segoe UI', sans-serif";
+      ctx.font = "bold 11.5px 'Nunito', 'Segoe UI', sans-serif";
       ctx.textAlign = "center";
-      const nameY = p.y - radius - 8;
+      const nameY = p.y - radius - 7;
       ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.strokeText(p.name, p.x, nameY);
       ctx.fillStyle = p.id === myId ? "#4ade80" : "#ffffff";
       ctx.fillText(p.name, p.x, nameY);
