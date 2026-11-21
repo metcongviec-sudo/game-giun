@@ -19,7 +19,7 @@ const TICK_RATE = 20; // 20 fps ticks (50ms interval)
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 const MAX_FOODS = 220; // Giới hạn tối đa 220 hạt mồi, tuyệt đối không phình to gây nghẽn mạng
-const MAX_BODY_SEGMENTS = 70; // Giới hạn tối đa 70 đốt thân, đảm bảo nhẹ nhàng 60 FPS
+const MAX_BODY_SEGMENTS = 90; // Giới hạn 90 đốt thân, đảm bảo nhẹ nhàng 60 FPS mà thân giun dài đẹp
 
 // Bộ nhớ lưu các phiên chơi tạo từ Bot Zalo (Session ngắn 6 ký tự)
 const activeSessions = new Map();
@@ -608,14 +608,11 @@ function tickRoom(room) {
     // Tăng tốc (Boost)
     if (player.isBoosting && player.score > 15) {
       player.speed = player.boostSpeed;
-      // Trừ điểm và thả mồi nhỏ phía sau đuôi
-      player.score -= 0.16;
-      if (Math.random() < 0.28 && player.body.length > 5) {
+      // Trừ điểm rất nhẹ nhàng khi bứt tốc (0.05 điểm/tick ~ 1 điểm/s) để không làm tụt điểm thê thảm
+      player.score -= 0.05;
+      if (Math.random() < 0.22 && player.body.length > 5) {
         const tail = player.body[player.body.length - 1];
         spawnFood(room, tail.x, tail.y, 1);
-        if (player.body.length > 15) {
-          player.body.pop();
-        }
       }
     } else {
       player.speed = player.baseSpeed;
@@ -653,7 +650,7 @@ function tickRoom(room) {
       const dx = player.x - food.x;
       const dy = player.y - food.y;
       if (dx * dx + dy * dy < eatRadius * eatRadius) {
-        player.score += food.val * 2;
+        player.score += food.val * 3;
         room.foods.splice(i, 1);
       }
     }
@@ -806,11 +803,10 @@ function tickRoom(room) {
   }
 
   const playersSummary = playersList.map(p => {
-    const bodyLen = p.body.length;
-    // Lấy mẫu thân giun vừa đủ (tối đa ~30 đốt) để gói tin mạng siêu nhẹ chỉ vài KB
-    const step = Math.max(1, Math.ceil(bodyLen / 30));
+    // Gửi trực tiếp toàn bộ đốt thân mịn màng, không subsample nhảy step gây giật/tụt đuôi
     const sampleBody = [];
-    for (let idx = 0; idx < bodyLen; idx += step) {
+    const blen = p.body.length;
+    for (let idx = 0; idx < blen; idx++) {
       sampleBody.push([Math.round(p.body[idx].x), Math.round(p.body[idx].y)]);
     }
     return {

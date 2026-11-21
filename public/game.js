@@ -689,6 +689,7 @@
   });
 
   window.addEventListener("mousedown", (e) => {
+    if (joystickTouchId !== null) return;
     if (e.target.closest(".modal-glass-card") || e.target.closest("#boostZone")) return;
     isBoosting = true;
     sendInput();
@@ -748,9 +749,18 @@
         p.angle += diff * 0.4;
       }
 
-      // Smooth 60 FPS Body Follow (Triệt tiêu 100% hiện tượng thân giun giật lag)
-      if (!p.renderBody || p.renderBody.length !== (p.body ? p.body.length : 0)) {
+      // Smooth 60 FPS Body Follow (Triệt tiêu 100% hiện tượng thân giun giật lag / tụt đốt)
+      if (!p.renderBody) {
         p.renderBody = (p.body || []).map(b => ({ x: b[0], y: b[1] }));
+      } else {
+        const targetLen = p.body ? p.body.length : 0;
+        while (p.renderBody.length < targetLen) {
+          const lastSeg = p.renderBody[p.renderBody.length - 1] || p;
+          p.renderBody.push({ x: lastSeg.x, y: lastSeg.y });
+        }
+        while (p.renderBody.length > targetLen) {
+          p.renderBody.pop();
+        }
       }
       const segSpacing = Math.max(4.5, (p.radius || 9.5) * 0.56);
       for (let i = 0; i < p.renderBody.length; i++) {
