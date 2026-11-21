@@ -223,13 +223,21 @@
 
   const boostParticles = [];
 
-  // Parse Game Token from URL
+  // Parse Game Token from URL (Hỗ trợ cả query ?token=... và clean path /play/TOKEN)
   const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get("token") || "";
+  let token = urlParams.get("token") || "";
 
-  // 2. Chặn truy cập trực tiếp: Không có token hợp lệ -> Đẩy ngay sang 404
+  if (!token) {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2 && (parts[0] === "play" || parts[0] === "p")) {
+      token = parts[1];
+    }
+  }
+
+  // Chặn truy cập trực tiếp: Không có token hợp lệ -> Đẩy ngay sang 404
   if (!token) {
     window.location.replace("https://ruaxbonz.com/404");
+    return;
   }
 
   let playerProfile = {

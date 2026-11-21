@@ -14,14 +14,13 @@ function getHmacKey() {
 /**
  * Tạo token mã hóa cho người chơi khi bấm link game
  */
-function createGameToken(playerInfo, ttlSeconds = 1800) {
+function createGameToken(playerInfo, ttlSeconds = 7200) {
   const now = Math.floor(Date.now() / 1000);
   const payload = JSON.stringify({
     uid: String(playerInfo.uid || ""),
-    name: String(playerInfo.name || "Chiến thần Giun").slice(0, 30),
-    avatar: String(playerInfo.avatar || ""),
-    roomId: String(playerInfo.roomId || "general_arena"),
-    roomName: String(playerInfo.roomName || "Đại Chiến Giun"),
+    name: String(playerInfo.name || "Chiến thần").slice(0, 25),
+    roomId: "ruaxbonz_arena",
+    roomName: "ruaxbonz.com",
     ts: now,
     exp: now + ttlSeconds
   });

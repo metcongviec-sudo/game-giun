@@ -17,15 +17,18 @@ const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 
 // 1. Lọc link gốc: Bắt buộc phải có token hợp lệ từ bot Zalo mới được vào
-// Nếu truy cập trực tiếp giun.ruaxbonz.com hoặc token không hợp lệ -> Đẩy ngay sang https://ruaxbonz.com/404
-app.get(["/", "/index.html"], (req, res, next) => {
-  const token = req.query.token;
+// Hỗ trợ cả query ?token=... và clean path /play/:token
+app.get(["/", "/index.html", "/play/:token", "/p/:token"], (req, res, next) => {
+  const token = (req.params.token || req.query.token || "").trim();
   if (!token) {
     return res.redirect("https://ruaxbonz.com/404");
   }
   const decoded = verifyGameToken(token);
   if (!decoded) {
     return res.redirect("https://ruaxbonz.com/404");
+  }
+  if (req.params.token) {
+    return res.sendFile(path.join(__dirname, "public", "index.html"));
   }
   next();
 });
