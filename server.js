@@ -259,13 +259,13 @@ app.get("/api/avatar-proxy", async (req, res) => {
 // ========================================================
 
 const SNAKE_COLORS = [
-  { head: "#00f5d4", body1: "#00bbf9", body2: "#00f5d4", glow: "rgba(0, 245, 212, 0.4)" }, // Cyan / Teal
-  { head: "#f72585", body1: "#7209b7", body2: "#f72585", glow: "rgba(247, 37, 133, 0.4)" }, // Cyberpunk Pink
-  { head: "#fee440", body1: "#ff006e", body2: "#fee440", glow: "rgba(254, 228, 64, 0.4)" }, // Neon Yellow
-  { head: "#52b788", body1: "#2d6a4f", body2: "#74c69d", glow: "rgba(82, 183, 136, 0.4)" }, // Emerald Green
-  { head: "#ff7b00", body1: "#d00000", body2: "#ffba08", glow: "rgba(255, 123, 0, 0.4)" }, // Flame Orange
-  { head: "#9d4edd", body1: "#5a189a", body2: "#c77dff", glow: "rgba(157, 78, 221, 0.4)" }, // Neon Violet
-  { head: "#4cc9f0", body1: "#4895ef", body2: "#4361ee", glow: "rgba(76, 201, 240, 0.4)" }, // Ice Blue
+  { head: "#22c55e", body1: "#16a34a", pattern: ["#22c55e", "#16a34a"], glow: "rgba(34, 197, 94, 0.35)" }, // Xanh Lá
+  { head: "#06b6d4", body1: "#0284c7", pattern: ["#06b6d4", "#0284c7"], glow: "rgba(6, 182, 212, 0.35)" }, // Xanh Biển
+  { head: "#ef4444", body1: "#b91c1c", pattern: ["#ef4444", "#b91c1c"], glow: "rgba(239, 68, 68, 0.35)" }, // Đỏ
+  { head: "#eab308", body1: "#ca8a04", pattern: ["#eab308", "#ca8a04"], glow: "rgba(234, 179, 8, 0.35)" }, // Vàng
+  { head: "#a855f7", body1: "#7e22ce", pattern: ["#a855f7", "#7e22ce"], glow: "rgba(168, 85, 247, 0.35)" }, // Tím
+  { head: "#f97316", body1: "#c2410c", pattern: ["#f97316", "#c2410c"], glow: "rgba(249, 115, 22, 0.35)" }, // Cam
+  { head: "#ec4899", body1: "#be185d", pattern: ["#ec4899", "#be185d"], glow: "rgba(236, 72, 153, 0.35)" }, // Hồng
 ];
 
 const rooms = new Map();

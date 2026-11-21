@@ -41,57 +41,57 @@
   const btnBoost = document.getElementById("btnBoost");
 
   // ══════════════════════════════════════════════════
-  // SLITHER.IO AUTHENTIC SKINS (Stripes & Patterns)
+  // CÁC MÀU GIUN ĐƠN GIẢN, TƯƠI SÁNG, DỄ THƯƠNG
   // ══════════════════════════════════════════════════
   const SKINS = [
     {
       id: 0,
-      name: "Classic Slither",
+      name: "Xanh Lá",
       head: "#22c55e",
-      pattern: ["#22c55e", "#16a34a", "#22c55e", "#15803d"],
-      glow: "rgba(34, 197, 94, 0.45)"
+      pattern: ["#22c55e", "#16a34a"],
+      glow: "rgba(34, 197, 94, 0.35)"
     },
     {
       id: 1,
-      name: "Rainbow Serpent",
-      head: "#ef4444",
-      pattern: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7"],
-      glow: "rgba(239, 68, 68, 0.45)"
+      name: "Xanh Biển",
+      head: "#06b6d4",
+      pattern: ["#06b6d4", "#0284c7"],
+      glow: "rgba(6, 182, 212, 0.35)"
     },
     {
       id: 2,
-      name: "Cyber Neon",
-      head: "#00f5d4",
-      pattern: ["#00f5d4", "#00bbf9", "#7209b7", "#f72585"],
-      glow: "rgba(0, 245, 212, 0.5)"
+      name: "Đỏ",
+      head: "#ef4444",
+      pattern: ["#ef4444", "#b91c1c"],
+      glow: "rgba(239, 68, 68, 0.35)"
     },
     {
       id: 3,
-      name: "Candy Cane",
-      head: "#dc2626",
-      pattern: ["#dc2626", "#ffffff", "#dc2626", "#ffffff"],
-      glow: "rgba(220, 38, 38, 0.45)"
+      name: "Vàng",
+      head: "#eab308",
+      pattern: ["#eab308", "#ca8a04"],
+      glow: "rgba(234, 179, 8, 0.35)"
     },
     {
       id: 4,
-      name: "Bumblebee",
-      head: "#facc15",
-      pattern: ["#facc15", "#1e293b", "#facc15", "#1e293b"],
-      glow: "rgba(250, 204, 21, 0.5)"
+      name: "Tím",
+      head: "#a855f7",
+      pattern: ["#a855f7", "#7e22ce"],
+      glow: "rgba(168, 85, 247, 0.35)"
     },
     {
       id: 5,
-      name: "Solar Dragon",
-      head: "#ff5400",
-      pattern: ["#ff5400", "#ff0054", "#9e0059", "#ffbd00"],
-      glow: "rgba(255, 84, 0, 0.5)"
+      name: "Cam",
+      head: "#f97316",
+      pattern: ["#f97316", "#c2410c"],
+      glow: "rgba(249, 115, 22, 0.35)"
     },
     {
       id: 6,
-      name: "Ice Phantom",
-      head: "#38bdf8",
-      pattern: ["#38bdf8", "#0284c7", "#e0f2fe", "#0369a1"],
-      glow: "rgba(56, 189, 248, 0.5)"
+      name: "Hồng",
+      head: "#ec4899",
+      pattern: ["#ec4899", "#be185d"],
+      glow: "rgba(236, 72, 153, 0.35)"
     }
   ];
 
@@ -778,11 +778,9 @@
   }
 
   function drawFoods(camX, camY) {
-    const time = Date.now() * 0.004;
-
     // Viewport frustum culling: Chỉ render các hạt mồi nằm trong khung nhìn màn hình
-    const halfW = (viewWidth / 2) / currentZoom + 70;
-    const halfH = (viewHeight / 2) / currentZoom + 70;
+    const halfW = (viewWidth / 2) / currentZoom + 50;
+    const halfH = (viewHeight / 2) / currentZoom + 50;
     const minX = camX - halfW;
     const maxX = camX + halfW;
     const minY = camY - halfH;
@@ -796,25 +794,18 @@
 
       const val = food[2];
       const color = food[3] || "#22c55e";
-      const pulse = 1 + Math.sin(time + fx * 0.15 + fy * 0.1) * 0.15;
-      const r = (val > 2 ? 6.5 + Math.min(val, 5) : 4.5) * pulse;
+      const r = val > 2 ? 6 + Math.min(val, 4) : 4.5;
 
-      // 1. Soft glowing outer ring (Tăng tốc phần cứng GPU, không tốn shadowBlur)
-      ctx.beginPath();
-      ctx.arc(fx, fy, r * 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = color + "40";
-      ctx.fill();
-
-      // 2. Shiny solid orb core
+      // Hạt mồi tròn đơn giản, rõ ràng, không giật lag
       ctx.beginPath();
       ctx.arc(fx, fy, r, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
 
-      // 3. Crisp white center highlight
+      // Điểm tâm mồi trắng nhỏ nhẹ
       ctx.beginPath();
-      ctx.arc(fx - r * 0.28, fy - r * 0.28, r * 0.32, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
+      ctx.arc(fx, fy, r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
       ctx.fill();
     }
   }
@@ -824,8 +815,8 @@
       const p = boostParticles[i];
       p.x += p.vx;
       p.y += p.vy;
-      p.alpha -= 0.04;
-      p.radius *= 0.95;
+      p.alpha -= 0.05;
+      p.radius *= 0.94;
 
       if (p.alpha <= 0) {
         boostParticles.splice(i, 1);
@@ -844,100 +835,90 @@
       const body = p.body || [];
       const skin = p.color || SKINS[0];
       const pattern = skin.pattern || [skin.head || "#22c55e", skin.body1 || "#16a34a"];
-      const radius = p.radius || 16;
+      const radius = p.radius || 15;
 
-      // Boost particles dropped behind tail
-      if (p.isBoosting && body.length > 2 && Math.random() < 0.45) {
+      // Boost particle nhẹ nhàng sau đuôi
+      if (p.isBoosting && body.length > 2 && Math.random() < 0.35) {
         const tail = body[body.length - 1];
         boostParticles.push({
-          x: tail[0] + (Math.random() - 0.5) * radius,
-          y: tail[1] + (Math.random() - 0.5) * radius,
-          vx: -Math.cos(p.angle) * 2.5 + (Math.random() - 0.5),
-          vy: -Math.sin(p.angle) * 2.5 + (Math.random() - 0.5),
-          radius: Math.random() * 4 + 2,
-          alpha: 0.85,
-          rgb: "34, 197, 94"
+          x: tail[0],
+          y: tail[1],
+          vx: -Math.cos(p.angle) * 1.5,
+          vy: -Math.sin(p.angle) * 1.5,
+          radius: 3,
+          alpha: 0.6,
+          rgb: "255, 255, 255"
         });
       }
 
-      // 1. Draw Body Segments (3D Glossy Striped Spheres)
+      // 1. Thân con giun - Đơn giản, tròn trịa, mượt mà
       for (let i = body.length - 1; i >= 0; i--) {
         const seg = body[i];
-        const segRadius = Math.max(7, radius * (0.65 + 0.35 * (1 - i / body.length)));
+        const segRadius = Math.max(7, radius * (0.7 + 0.3 * (1 - i / body.length)));
         const colorIdx = i % pattern.length;
         const baseColor = pattern[colorIdx];
 
-        // Body sphere
+        // Đốt tròn trơn sạch sẽ
         ctx.beginPath();
         ctx.arc(seg[0], seg[1], segRadius, 0, Math.PI * 2);
         ctx.fillStyle = baseColor;
         ctx.fill();
 
-        // 3D Glossy highlight dot
-        ctx.beginPath();
-        ctx.arc(seg[0] - segRadius * 0.25, seg[1] - segRadius * 0.25, segRadius * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
-        ctx.fill();
+        // Viền đốt nhẹ giúp thân giun mềm mại rõ nét
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
       }
 
-      // 2. Snake Head & Cartoon Googly Eyes
+      // 2. Đầu con giun tròn & 2 mắt tròn xoe hoạt hình đơn giản
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
 
-      // Head circle
+      // Đầu tròn đơn giản cùng màu thân
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fillStyle = skin.head || "#22c55e";
+      ctx.fillStyle = skin.head || pattern[0] || "#22c55e";
       ctx.fill();
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
 
-      // Head 3D sheen
-      ctx.beginPath();
-      ctx.arc(-radius * 0.25, -radius * 0.25, radius * 0.45, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.fill();
-
-      // Slither.io Cartoon Googly Eyes
-      const eyeOffsetX = radius * 0.35;
-      const eyeOffsetY = radius * 0.45;
-      const eyeRadius = radius * 0.28;
-      const pupilRadius = radius * 0.15;
+      // 2 mắt tròn hoạt hình ngộ nghĩnh
+      const eyeOffsetX = radius * 0.32;
+      const eyeOffsetY = radius * 0.42;
+      const eyeRadius = radius * 0.32;
+      const pupilRadius = radius * 0.16;
 
       [-eyeOffsetY, eyeOffsetY].forEach(offsetY => {
-        // Eye White
+        // Tròng trắng
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
         ctx.arc(eyeOffsetX, offsetY, eyeRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "#161c22";
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
         ctx.lineWidth = 1.2;
         ctx.stroke();
 
-        // Eye Pupil
+        // Con ngươi đen nhìn về phía trước theo hướng đi
         const lookX = eyeOffsetX + pupilRadius * 0.55;
-        ctx.fillStyle = "#0c1015";
+        ctx.fillStyle = "#0f172a";
         ctx.beginPath();
         ctx.arc(lookX, offsetY, pupilRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Catchlight
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(lookX + 1, offsetY - 1, pupilRadius * 0.35, 0, Math.PI * 2);
         ctx.fill();
       });
 
       ctx.restore();
 
-      // 3. Name Tag Floating Label (Crisp Outlined Text)
+      // 3. Tên người chơi nổi trên đầu giun
       ctx.save();
-      ctx.font = "bold 13px 'Nunito', 'Outfit', sans-serif";
+      ctx.font = "bold 13px 'Nunito', 'Segoe UI', sans-serif";
       ctx.textAlign = "center";
-      const nameY = p.y - radius - 10;
+      const nameY = p.y - radius - 8;
       ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
       ctx.lineWidth = 3;
       ctx.strokeText(p.name, p.x, nameY);
-      ctx.fillStyle = p.id === myId ? "#22c55e" : "#ffffff";
+      ctx.fillStyle = p.id === myId ? "#4ade80" : "#ffffff";
       ctx.fillText(p.name, p.x, nameY);
       ctx.restore();
     }
