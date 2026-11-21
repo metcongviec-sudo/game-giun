@@ -23,6 +23,44 @@ const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 const activeSessions = new Map();
 const usedTokens = new Set();
 
+// Hàng đợi sự kiện game để bot Zalo nhận và gửi tin nhắn chúc mừng (Atomic Consume)
+const gameEventsQueue = [];
+
+function pushGameEvent(evt) {
+  evt.id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  evt.ts = Date.now();
+  evt.consumed = false;
+  gameEventsQueue.push(evt);
+
+  // Giữ tối đa 50 sự kiện trong 2 phút
+  const cutoff = Date.now() - 120000;
+  while (gameEventsQueue.length > 50 || (gameEventsQueue.length > 0 && gameEventsQueue[0].ts < cutoff)) {
+    gameEventsQueue.shift();
+  }
+}
+
+// Endpoint lấy và tiêu thụ sự kiện (Chỉ 1 bot xử lý 1 lần duy nhất)
+app.post("/api/consume-game-events", (req, res) => {
+  const unconsumed = [];
+  const now = Date.now();
+
+  for (const evt of gameEventsQueue) {
+    if (!evt.consumed && (now - evt.ts < 45000)) {
+      evt.consumed = true;
+      unconsumed.push(evt);
+    }
+  }
+
+  return res.json({ success: true, events: unconsumed });
+});
+
+// Endpoint GET lịch sử sự kiện
+app.get("/api/game-events", (req, res) => {
+  const since = Number(req.query.since || 0);
+  const events = gameEventsQueue.filter(e => e.ts > since);
+  return res.json({ success: true, events });
+});
+
 // Trang 404 tự hủy chuẩn Cyberpunk khi link đã hết hạn hoặc đã được sử dụng
 const RENDER_404_HTML = `
 <!DOCTYPE html>
@@ -171,9 +209,11 @@ app.get("/play/:token", (req, res) => {
 
 // API tạo session ngắn từ Bot Zalo - TỰ HỦY LINK CŨ CỦA NGƯỜI ĐÓ
 app.post("/api/create-session", (req, res) => {
-  const { uid, name, roomName } = req.body || {};
+  const { uid, name, roomName, threadId, threadType } = req.body || {};
   const cleanName = String(name || "Chiến Thần").trim().slice(0, 25);
   const cleanUid = String(uid || "").trim();
+  const cleanThreadId = String(threadId || "").trim();
+  const cleanThreadType = threadType !== undefined ? Number(threadType) : 1;
 
   // 1. Tự hủy tất cả link cũ của UID này nếu họ gõ lại lệnh !giun
   if (cleanUid) {
@@ -195,6 +235,8 @@ app.post("/api/create-session", (req, res) => {
     uid: cleanUid,
     name: cleanName,
     roomName: roomName || "ruaxbonz.com",
+    threadId: cleanThreadId,
+    threadType: cleanThreadType,
     ts: Date.now(),
     used: false
   });
@@ -397,6 +439,8 @@ function spawnPlayer(room, ws, playerInfo) {
     uid: playerInfo.uid || "",
     name: playerInfo.name || "Chiến Thần",
     avatar: playerInfo.avatar || "",
+    threadId: playerInfo.threadId || "",
+    threadType: playerInfo.threadType !== undefined ? playerInfo.threadType : 1,
     x: startX,
     y: startY,
     angle: startAngle,
@@ -605,6 +649,24 @@ function tickRoom(room) {
           killPlayer(room, p1);
           p2.kills += 1;
           p2.score += 50; // Thưởng điểm hạ gục
+
+          // Bắn sự kiện nếu p2 là người chơi thật có UID và nhóm
+          if (!p2.isBot && p2.uid && p2.threadId) {
+            const now = Date.now();
+            if (!p2.lastKillNotif || (now - p2.lastKillNotif > 12000)) {
+              p2.lastKillNotif = now;
+              pushGameEvent({
+                type: "kill",
+                killerUid: p2.uid,
+                killerName: p2.name,
+                victimName: p1.name || "Một con sâu",
+                kills: p2.kills,
+                score: Math.floor(p2.score),
+                threadId: p2.threadId,
+                threadType: p2.threadType !== undefined ? p2.threadType : 1
+              });
+            }
+          }
           break;
         }
       }
@@ -618,9 +680,40 @@ function tickRoom(room) {
   const sendLb = (room.tickCount % 10 === 0) || !room.cachedLb;
   if (sendLb) {
     room.cachedLb = playersList
-      .map(p => ({ id: p.id, name: p.name, score: Math.floor(p.score), kills: p.kills, avatar: p.avatar }))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        score: Math.floor(p.score),
+        kills: p.kills,
+        avatar: p.avatar,
+        uid: p.uid,
+        threadId: p.threadId,
+        threadType: p.threadType,
+        isBot: p.isBot
+      }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
+
+    // Bắn sự kiện khi có người chơi thật vươn lên TOP 1
+    const topPlayer = room.cachedLb[0];
+    if (topPlayer && !topPlayer.isBot && topPlayer.uid && topPlayer.threadId) {
+      if (topPlayer.id !== room.lastTop1PlayerId) {
+        room.lastTop1PlayerId = topPlayer.id;
+        const now = Date.now();
+        if (!room.lastTop1Notif || (now - room.lastTop1Notif > 30000)) {
+          room.lastTop1Notif = now;
+          pushGameEvent({
+            type: "top1",
+            playerUid: topPlayer.uid,
+            playerName: topPlayer.name,
+            score: topPlayer.score,
+            kills: topPlayer.kills,
+            threadId: topPlayer.threadId,
+            threadType: topPlayer.threadType !== undefined ? topPlayer.threadType : 1
+          });
+        }
+      }
+    }
   }
 
   // Mồi chỉ cần gửi mỗi 4 tick (200ms) vì mồi đứng yên, giảm 75% dung lượng mạng
@@ -674,6 +767,8 @@ wss.on("connection", (ws) => {
       if (msg.type === "join") {
         let playerName = "Chiến Thần";
         let playerUid = "";
+        let playerThreadId = "";
+        let playerThreadType = 1;
 
         // 1. Nhận diện từ Session Code ngắn & TỰ HỦY LINK
         if (msg.code) {
@@ -682,6 +777,8 @@ wss.on("connection", (ws) => {
           if (s && !s.used) {
             playerName = String(s.name).trim().slice(0, 25);
             playerUid = s.uid || "";
+            playerThreadId = s.threadId || "";
+            playerThreadType = s.threadType !== undefined ? Number(s.threadType) : 1;
             // Đánh dấu link này đã sử dụng để tự hủy ngay
             s.used = true;
             // Xóa vĩnh viễn sau 10 giây để người khác bấm vào link sẽ ra 404
@@ -695,6 +792,8 @@ wss.on("connection", (ws) => {
           if (verified && verified.name && !usedTokens.has(msg.token)) {
             playerName = String(verified.name).trim().slice(0, 25);
             playerUid = verified.uid || "";
+            playerThreadId = verified.threadId || "";
+            playerThreadType = verified.threadType !== undefined ? Number(verified.threadType) : 1;
             usedTokens.add(msg.token);
           }
         }
@@ -704,6 +803,8 @@ wss.on("connection", (ws) => {
           avatar: "",
           roomId: GLOBAL_ROOM_ID,
           uid: playerUid,
+          threadId: playerThreadId,
+          threadType: playerThreadType,
           skin: msg.skin || null
         };
 
