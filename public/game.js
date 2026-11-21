@@ -213,6 +213,7 @@
   let myId = null;
   let myPlayer = null;
   let players = [];
+  const playerEntities = new Map();
   let foods = [];
   let leaderboard = [];
   let isAlive = false;
@@ -373,11 +374,45 @@
         }
 
         if (data.type === "tick") {
-          players = data.players || [];
+          const rawPlayers = data.players || [];
           foods = data.foods || [];
           leaderboard = data.leaderboard || [];
 
-          myPlayer = players.find(p => p.id === myId) || null;
+          const currentIds = new Set();
+          for (const rp of rawPlayers) {
+            currentIds.add(rp.id);
+            let p = playerEntities.get(rp.id);
+            if (!p) {
+              p = {
+                ...rp,
+                targetX: rp.x,
+                targetY: rp.y,
+                targetAngle: rp.angle,
+                body: rp.body || []
+              };
+              playerEntities.set(rp.id, p);
+            } else {
+              p.targetX = rp.x;
+              p.targetY = rp.y;
+              p.targetAngle = rp.angle;
+              p.radius = rp.radius;
+              p.score = rp.score;
+              p.kills = rp.kills;
+              p.isBoosting = rp.isBoosting;
+              p.name = rp.name;
+              p.color = rp.color;
+              p.body = rp.body;
+            }
+          }
+
+          for (const id of playerEntities.keys()) {
+            if (!currentIds.has(id)) {
+              playerEntities.delete(id);
+            }
+          }
+
+          players = Array.from(playerEntities.values());
+          myPlayer = playerEntities.get(myId) || null;
 
           if (myPlayer) {
             hudScoreVal.textContent = myPlayer.score.toLocaleString();
@@ -486,12 +521,7 @@
       miniCtx.beginPath();
       miniCtx.arc(rx, ry, isMe ? 3.5 : 2, 0, Math.PI * 2);
       miniCtx.fillStyle = isMe ? "#22c55e" : "rgba(255, 255, 255, 0.65)";
-      if (isMe) {
-        miniCtx.shadowColor = "#22c55e";
-        miniCtx.shadowBlur = 6;
-      }
       miniCtx.fill();
-      miniCtx.shadowBlur = 0;
     }
   }
 
@@ -637,7 +667,19 @@
 
     ctx.clearRect(0, 0, viewWidth, viewHeight);
 
-    // Camera follow & Dynamic Zoom (The signature Slither.io zoom mechanic)
+    // Smooth Lerp positions & angles for all players at 60 FPS
+    for (const p of playerEntities.values()) {
+      if (typeof p.targetX === "number") p.x += (p.targetX - p.x) * 0.35;
+      if (typeof p.targetY === "number") p.y += (p.targetY - p.y) * 0.35;
+      if (typeof p.targetAngle === "number") {
+        let diff = p.targetAngle - p.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        p.angle += diff * 0.35;
+      }
+    }
+
+    // Camera follow & Dynamic Zoom
     let camX = mapCenter;
     let camY = mapCenter;
     if (myPlayer) {
@@ -659,13 +701,13 @@
     // 2. Circular Glowing Forcefield Border
     drawMapBorders();
 
-    // 3. Glowing Energy Orbs (Foods)
-    drawFoods();
+    // 3. Glowing Energy Orbs (Foods) with Viewport Culling
+    drawFoods(camX, camY);
 
     // 4. Boost Sparks & Tail Mass
     drawBoostParticles();
 
-    // 5. Authentic Slither Snakes
+    // 5. Authentic Slither Snakes (Fast 3D spheres without blur)
     drawSnakes();
 
     ctx.restore();
@@ -684,15 +726,11 @@
   }
 
   function drawMapBorders() {
-    // Red glowing circular perimeter wall
     ctx.beginPath();
     ctx.arc(mapCenter, mapCenter, mapRadius, 0, Math.PI * 2);
     ctx.strokeStyle = "#ff1744";
-    ctx.lineWidth = 14;
-    ctx.shadowColor = "#ff1744";
-    ctx.shadowBlur = 24;
+    ctx.lineWidth = 12;
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
     // Outer dark abyss
     ctx.beginPath();
@@ -702,32 +740,45 @@
     ctx.fill();
   }
 
-  function drawFoods() {
-    const time = Date.now() * 0.005;
-    for (const food of foods) {
-      const [fx, fy, val, color] = food;
-      const pulse = 1 + Math.sin(time + fx * 0.15 + fy * 0.1) * 0.16;
-      const r = (val > 2 ? 6.5 + Math.min(val, 6) : 4.5) * pulse;
+  function drawFoods(camX, camY) {
+    const time = Date.now() * 0.004;
 
-      // Glowing Aura
+    // Viewport frustum culling: Chỉ render các hạt mồi nằm trong khung nhìn màn hình
+    const halfW = (viewWidth / 2) / currentZoom + 70;
+    const halfH = (viewHeight / 2) / currentZoom + 70;
+    const minX = camX - halfW;
+    const maxX = camX + halfW;
+    const minY = camY - halfH;
+    const maxY = camY + halfH;
+
+    for (let i = 0; i < foods.length; i++) {
+      const food = foods[i];
+      const fx = food[0];
+      const fy = food[1];
+      if (fx < minX || fx > maxX || fy < minY || fy > maxY) continue;
+
+      const val = food[2];
+      const color = food[3] || "#22c55e";
+      const pulse = 1 + Math.sin(time + fx * 0.15 + fy * 0.1) * 0.15;
+      const r = (val > 2 ? 6.5 + Math.min(val, 5) : 4.5) * pulse;
+
+      // 1. Soft glowing outer ring (Tăng tốc phần cứng GPU, không tốn shadowBlur)
       ctx.beginPath();
-      ctx.arc(fx, fy, r * 1.8, 0, Math.PI * 2);
-      ctx.fillStyle = color ? `${color}33` : "rgba(34, 197, 94, 0.25)";
+      ctx.arc(fx, fy, r * 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = color + "40";
       ctx.fill();
 
-      // Shiny Glowing Orb Core
-      const grad = ctx.createRadialGradient(fx - r * 0.35, fy - r * 0.35, 1, fx, fy, r);
-      grad.addColorStop(0, "#ffffff");
-      grad.addColorStop(0.35, color || "#22c55e");
-      grad.addColorStop(1, "#0a0f18");
-
+      // 2. Shiny solid orb core
       ctx.beginPath();
       ctx.arc(fx, fy, r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.shadowColor = color || "#22c55e";
-      ctx.shadowBlur = val > 2 ? 14 : 8;
+      ctx.fillStyle = color;
       ctx.fill();
-      ctx.shadowBlur = 0;
+
+      // 3. Crisp white center highlight
+      ctx.beginPath();
+      ctx.arc(fx - r * 0.28, fy - r * 0.28, r * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
     }
   }
 
@@ -759,15 +810,15 @@
       const radius = p.radius || 16;
 
       // Boost particles dropped behind tail
-      if (p.isBoosting && body.length > 2 && Math.random() < 0.65) {
+      if (p.isBoosting && body.length > 2 && Math.random() < 0.45) {
         const tail = body[body.length - 1];
         boostParticles.push({
           x: tail[0] + (Math.random() - 0.5) * radius,
           y: tail[1] + (Math.random() - 0.5) * radius,
           vx: -Math.cos(p.angle) * 2.5 + (Math.random() - 0.5),
           vy: -Math.sin(p.angle) * 2.5 + (Math.random() - 0.5),
-          radius: Math.random() * 5 + 3,
-          alpha: 0.9,
+          radius: Math.random() * 4 + 2,
+          alpha: 0.85,
           rgb: "34, 197, 94"
         });
       }
@@ -779,63 +830,44 @@
         const colorIdx = i % pattern.length;
         const baseColor = pattern[colorIdx];
 
-        // 3D Shaded Sphere Gradient
-        const segGrad = ctx.createRadialGradient(
-          seg[0] - segRadius * 0.35, seg[1] - segRadius * 0.35, 1,
-          seg[0], seg[1], segRadius
-        );
-        segGrad.addColorStop(0, "#ffffff");
-        segGrad.addColorStop(0.35, baseColor);
-        segGrad.addColorStop(1, "#0a0f18");
-
+        // Body sphere
         ctx.beginPath();
         ctx.arc(seg[0], seg[1], segRadius, 0, Math.PI * 2);
-        ctx.fillStyle = segGrad;
-        if (p.isBoosting) {
-          ctx.shadowColor = baseColor;
-          ctx.shadowBlur = 12;
-        }
+        ctx.fillStyle = baseColor;
         ctx.fill();
-        ctx.shadowBlur = 0;
+
+        // 3D Glossy highlight dot
+        ctx.beginPath();
+        ctx.arc(seg[0] - segRadius * 0.25, seg[1] - segRadius * 0.25, segRadius * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+        ctx.fill();
       }
 
-      // 2. Draw Snake Head & Big Googly Eyes (The Slither.io Icon!)
+      // 2. Snake Head & Cartoon Googly Eyes
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
 
-      // Head Glow
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 1.12, 0, Math.PI * 2);
-      ctx.fillStyle = skin.glow || "rgba(34, 197, 94, 0.4)";
-      ctx.fill();
-
-      // Shiny Head Sphere
-      const headGrad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, 2, 0, 0, radius);
-      headGrad.addColorStop(0, "#ffffff");
-      headGrad.addColorStop(0.35, skin.head || "#22c55e");
-      headGrad.addColorStop(1, "#0a0f18");
-
+      // Head circle
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fillStyle = headGrad;
-      if (p.isBoosting) {
-        ctx.shadowColor = skin.head || "#22c55e";
-        ctx.shadowBlur = 16;
-      }
+      ctx.fillStyle = skin.head || "#22c55e";
       ctx.fill();
-      ctx.shadowBlur = 0;
 
+      // Head 3D sheen
+      ctx.beginPath();
+      ctx.arc(-radius * 0.25, -radius * 0.25, radius * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.fill();
 
-      // Slither.io Iconic Cartoon Googly Eyes!
-      // Two big white eyes tracking steering direction
+      // Slither.io Cartoon Googly Eyes
       const eyeOffsetX = radius * 0.35;
       const eyeOffsetY = radius * 0.45;
       const eyeRadius = radius * 0.28;
       const pupilRadius = radius * 0.15;
 
       [-eyeOffsetY, eyeOffsetY].forEach(offsetY => {
-        // Eye White Sclera
+        // Eye White
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
         ctx.arc(eyeOffsetX, offsetY, eyeRadius, 0, Math.PI * 2);
@@ -844,33 +876,31 @@
         ctx.lineWidth = 1.2;
         ctx.stroke();
 
-        // Eye Pupil Looking Forward/Target Direction
+        // Eye Pupil
         const lookX = eyeOffsetX + pupilRadius * 0.55;
-        const lookY = offsetY;
-
         ctx.fillStyle = "#0c1015";
         ctx.beginPath();
-        ctx.arc(lookX, lookY, pupilRadius, 0, Math.PI * 2);
+        ctx.arc(lookX, offsetY, pupilRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pupil Catchlight
+        // Catchlight
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.arc(lookX + 1.2, lookY - 1.2, pupilRadius * 0.38, 0, Math.PI * 2);
+        ctx.arc(lookX + 1, offsetY - 1, pupilRadius * 0.35, 0, Math.PI * 2);
         ctx.fill();
       });
 
       ctx.restore();
 
-      // 3. Name Tag Floating Label (Slither.io style)
+      // 3. Name Tag Floating Label (Crisp Outlined Text)
       ctx.save();
       ctx.font = "bold 13px 'Nunito', 'Outfit', sans-serif";
       ctx.textAlign = "center";
-
-      const nameY = p.y - radius - 12;
+      const nameY = p.y - radius - 10;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+      ctx.lineWidth = 3;
+      ctx.strokeText(p.name, p.x, nameY);
       ctx.fillStyle = p.id === myId ? "#22c55e" : "#ffffff";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-      ctx.shadowBlur = 6;
       ctx.fillText(p.name, p.x, nameY);
       ctx.restore();
     }

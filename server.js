@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3150;
 const MAP_SIZE = 4000;
 const MAP_CENTER = 2000;
 const MAP_RADIUS = 1850;
-const TICK_RATE = 25; // 25 fps ticks for smooth physics
+const TICK_RATE = 20; // 20 fps ticks (50ms interval) - Tối ưu băng thông & cực nhẹ cho điện thoại
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 
@@ -95,7 +95,7 @@ function getOrCreateRoom(roomId, roomName = "Đại Chiến Giun") {
     };
 
     // Tạo mồi ban đầu
-    spawnInitialFoods(room, 200);
+    spawnInitialFoods(room, 130);
 
     // Bắt đầu vòng lặp tick cho phòng
     room.interval = setInterval(() => tickRoom(room), TICK_INTERVAL);
@@ -201,8 +201,8 @@ function killPlayer(room, player) {
 }
 
 function tickRoom(room) {
-  // Duy trì lượng mồi dồi dào trên bản đồ Slither.io
-  if (room.foods.length < 350) {
+  // Duy trì lượng mồi tối ưu (130 hạt mồi vừa đẹp bản đồ, nhẹ mạng mượt mà)
+  if (room.foods.length < 130) {
     spawnFood(room);
   }
 
