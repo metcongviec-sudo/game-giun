@@ -1,11 +1,14 @@
 const crypto = require("crypto");
 
+const FIXED_SECRET = "ruaxbonz-congiun-master-key-2026-very-secure-xyz";
+const FIXED_HMAC = "ruaxbonz-congiun-hmac-signature-2026-ultra-safe-abc";
+
 function getSecret() {
-  return (process.env.GAME_SECRET || process.env.BOT_API_SECRET || "congiun-ruaxbonz-vip-secret-2026-key999").trim();
+  return FIXED_SECRET;
 }
 
 function getHmacKey() {
-  return (process.env.GAME_HMAC_KEY || process.env.BOT_API_KEY || "congiun-hmac-key-2026-safe-secure-098").trim();
+  return FIXED_HMAC;
 }
 
 /**
