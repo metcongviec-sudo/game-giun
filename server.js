@@ -21,6 +21,106 @@ const GLOBAL_ROOM_ID = "ruaxbonz_arena";
 
 // Bộ nhớ lưu các phiên chơi tạo từ Bot Zalo (Session ngắn 6 ký tự)
 const activeSessions = new Map();
+const usedTokens = new Set();
+
+// Trang 404 tự hủy chuẩn Cyberpunk khi link đã hết hạn hoặc đã được sử dụng
+const RENDER_404_HTML = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>404 - Link đã tự hủy | ruaxbonz.com</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111822;
+      color: #fff;
+      font-family: 'Nunito', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: rgba(22, 28, 34, 0.92);
+      border: 1.5px solid rgba(239, 68, 68, 0.45);
+      border-radius: 24px;
+      padding: 36px 24px;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(12px);
+    }
+    .skull-icon {
+      font-size: 52px;
+      margin-bottom: 12px;
+      animation: float 2.5s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .code-badge {
+      display: inline-block;
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      padding: 4px 14px;
+      border-radius: 12px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 900;
+      margin-bottom: 12px;
+      color: #f8fafc;
+    }
+    .desc {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      font-weight: 600;
+    }
+    .instruction-box {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+    .instruction-box code {
+      background: #22c55e;
+      color: #0c1015;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 900;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="skull-icon">💀</div>
+    <div class="code-badge">ERROR 404</div>
+    <h1 class="title">LINK ĐÃ TỰ HỦY!</h1>
+    <p class="desc">Link này chỉ sử dụng 1 lần và đã tự động hủy sau khi vào game hoặc khi có người gõ lệnh mới.</p>
+    <div class="instruction-box">
+      👉 Vào nhóm Zalo gõ lệnh <code>!giun</code> để bot cấp link mới chính chủ!
+    </div>
+  </div>
+</body>
+</html>
+`;
 
 // Tự động dọn dẹp session quá 24h
 setInterval(() => {
@@ -39,18 +139,52 @@ app.use((req, res, next) => {
 // Serve static frontend FIRST so /style.css, /game.js, etc. never get intercepted
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route game: Hỗ trợ cả /, /play/:token, /p/:token, /p/:code
-app.get(["/", "/play/:token", "/p/:token", "/play", "/p"], (req, res) => {
+// Route trang chủ
+app.get(["/", "/play", "/p"], (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// API tạo session ngắn từ Bot Zalo
+// Route link ngắn /p/:code - Tự hủy trả về 404 nếu session không tồn tại hoặc đã dùng
+app.get("/p/:code", (req, res) => {
+  const code = String(req.params.code || "").trim().toLowerCase();
+  const session = activeSessions.get(code);
+
+  if (!session || session.used) {
+    return res.status(404).send(RENDER_404_HTML);
+  }
+
+  return res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Route /play/:token - Tự hủy trả về 404 nếu token không hợp lệ hoặc đã dùng
+app.get("/play/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  if (usedTokens.has(token)) {
+    return res.status(404).send(RENDER_404_HTML);
+  }
+  const decoded = verifyGameToken(token);
+  if (!decoded) {
+    return res.status(404).send(RENDER_404_HTML);
+  }
+  return res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// API tạo session ngắn từ Bot Zalo - TỰ HỦY LINK CŨ CỦA NGƯỜI ĐÓ
 app.post("/api/create-session", (req, res) => {
   const { uid, name, roomName } = req.body || {};
   const cleanName = String(name || "Chiến Thần").trim().slice(0, 25);
   const cleanUid = String(uid || "").trim();
 
-  // Tạo mã ngắn 6 ký tự ngẫu nhiên
+  // 1. Tự hủy tất cả link cũ của UID này nếu họ gõ lại lệnh !giun
+  if (cleanUid) {
+    for (const [oldCode, s] of activeSessions.entries()) {
+      if (s.uid === cleanUid) {
+        activeSessions.delete(oldCode);
+      }
+    }
+  }
+
+  // 2. Tạo mã ngắn 6 ký tự ngẫu nhiên mới
   const chars = "abcdefghjkmnpqrstuvwxyz23456789";
   let code = "";
   for (let i = 0; i < 6; i++) {
@@ -61,7 +195,8 @@ app.post("/api/create-session", (req, res) => {
     uid: cleanUid,
     name: cleanName,
     roomName: roomName || "ruaxbonz.com",
-    ts: Date.now()
+    ts: Date.now(),
+    used: false
   });
 
   return res.json({
@@ -76,10 +211,10 @@ app.post("/api/create-session", (req, res) => {
 app.get("/api/get-session", (req, res) => {
   const code = String(req.query.code || "").trim().toLowerCase();
   const session = activeSessions.get(code);
-  if (session) {
+  if (session && !session.used) {
     return res.json({ success: true, player: session });
   }
-  return res.json({ success: false, message: "Session không tồn tại hoặc đã hết hạn" });
+  return res.status(404).json({ success: false, message: "Link đã tự hủy hoặc đã hết hạn" });
 });
 
 // API verify token endpoint (for backward compatibility)
@@ -399,21 +534,27 @@ wss.on("connection", (ws) => {
         let playerName = "Chiến Thần";
         let playerUid = "";
 
-        // 1. Nhận diện từ Session Code ngắn
+        // 1. Nhận diện từ Session Code ngắn & TỰ HỦY LINK
         if (msg.code) {
-          const s = activeSessions.get(String(msg.code).trim().toLowerCase());
-          if (s && s.name) {
+          const codeKey = String(msg.code).trim().toLowerCase();
+          const s = activeSessions.get(codeKey);
+          if (s && !s.used) {
             playerName = String(s.name).trim().slice(0, 25);
             playerUid = s.uid || "";
+            // Đánh dấu link này đã sử dụng để tự hủy ngay
+            s.used = true;
+            // Xóa vĩnh viễn sau 10 giây để người khác bấm vào link sẽ ra 404
+            setTimeout(() => activeSessions.delete(codeKey), 10000);
           }
         }
 
-        // 2. Nhận diện từ Token mã hóa nếu không có session code
+        // 2. Nhận diện từ Token mã hóa nếu không có session code & TỰ HỦY TOKEN
         if (playerName === "Chiến Thần" && msg.token) {
           const verified = verifyGameToken(msg.token);
-          if (verified && verified.name) {
+          if (verified && verified.name && !usedTokens.has(msg.token)) {
             playerName = String(verified.name).trim().slice(0, 25);
             playerUid = verified.uid || "";
+            usedTokens.add(msg.token);
           }
         }
 
