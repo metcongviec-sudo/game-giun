@@ -194,9 +194,9 @@
   // ══════════════════════════════════════════════════
   let viewWidth = window.innerWidth;
   let viewHeight = window.innerHeight;
-  let mapSize = 4000;
-  let mapCenter = 2000;
-  let mapRadius = 1850;
+  let mapSize = 7000;
+  let mapCenter = 3500;
+  let mapRadius = 3200;
 
   function resize() {
     viewWidth = window.innerWidth;
@@ -405,15 +405,15 @@
           myId = data.playerId;
           mapSize = data.mapSize || mapSize;
           mapCenter = data.mapCenter || mapSize / 2;
-          mapRadius = data.mapRadius || 1850;
+          mapRadius = data.mapRadius || 3200;
           isAlive = true;
           updateProfileUI();
         }
 
         if (data.type === "tick") {
           const rawPlayers = data.players || [];
-          foods = data.foods || [];
-          leaderboard = data.leaderboard || [];
+          if (data.foods) foods = data.foods;
+          if (data.leaderboard) leaderboard = data.leaderboard;
 
           const currentIds = new Set();
           for (const rp of rawPlayers) {
@@ -732,8 +732,8 @@
     ctx.scale(currentZoom, currentZoom);
     ctx.translate(-camX, -camY);
 
-    // 1. Dark Slither.io Honeycomb Background
-    drawHexBackground();
+    // 1. Dark Slither.io Viewport Grid Background (Zero-lag)
+    drawHexBackground(camX, camY);
 
     // 2. Circular Glowing Forcefield Border
     drawMapBorders();
@@ -745,21 +745,40 @@
     drawBoostParticles();
 
     // 5. Authentic Slither Snakes (Fast 3D spheres without blur)
-    drawSnakes();
+    drawSnakes(camX, camY);
 
     ctx.restore();
   }
 
-  function drawHexBackground() {
-    if (!hexPattern) createHexPattern();
+  function drawHexBackground(camX, camY) {
+    const halfW = (viewWidth / 2) / currentZoom + 80;
+    const halfH = (viewHeight / 2) / currentZoom + 80;
+    const minX = camX - halfW;
+    const maxX = camX + halfW;
+    const minY = camY - halfH;
+    const maxY = camY + halfH;
 
-    // Fill the circular arena with hexagonal pattern
-    ctx.save();
+    // Nền không gian đấu trường
+    ctx.fillStyle = "#11161d";
+    ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+
+    // Lưới viewport siêu nhẹ (chỉ vẽ đường trong màn hình, không tốn GPU)
+    ctx.strokeStyle = "rgba(40, 56, 75, 0.4)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(mapCenter, mapCenter, mapRadius, 0, Math.PI * 2);
-    ctx.fillStyle = hexPattern;
-    ctx.fill();
-    ctx.restore();
+
+    const startX = Math.floor(minX / 100) * 100;
+    for (let x = startX; x <= maxX; x += 100) {
+      ctx.moveTo(x, minY);
+      ctx.lineTo(x, maxY);
+    }
+
+    const startY = Math.floor(minY / 100) * 100;
+    for (let y = startY; y <= maxY; y += 100) {
+      ctx.moveTo(minX, y);
+      ctx.lineTo(maxX, y);
+    }
+    ctx.stroke();
   }
 
   function drawMapBorders() {
@@ -830,8 +849,15 @@
     }
   }
 
-  function drawSnakes() {
+  function drawSnakes(camX, camY) {
+    const viewDistLimit = Math.hypot(viewWidth, viewHeight) / (2 * currentZoom) + 400;
+
     for (const p of players) {
+      // Bỏ qua giun ở quá xa ngoài màn hình để tối ưu FPS tối đa
+      if (Math.hypot(p.x - camX, p.y - camY) > viewDistLimit) {
+        continue;
+      }
+
       const body = p.body || [];
       const skin = p.color || SKINS[0];
       const pattern = skin.pattern || [skin.head || "#22c55e", skin.body1 || "#16a34a"];

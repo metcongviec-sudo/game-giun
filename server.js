@@ -12,9 +12,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3150;
-const MAP_SIZE = 4000;
-const MAP_CENTER = 2000;
-const MAP_RADIUS = 1850;
+const MAP_SIZE = 7000;
+const MAP_CENTER = 3500;
+const MAP_RADIUS = 3200;
 const TICK_RATE = 20; // 20 fps ticks (50ms interval) - Tối ưu băng thông & cực nhẹ cho điện thoại
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const GLOBAL_ROOM_ID = "ruaxbonz_arena";
@@ -270,7 +270,7 @@ const SNAKE_COLORS = [
 
 const rooms = new Map();
 
-const TARGET_BOT_COUNT = 16;
+const TARGET_BOT_COUNT = 10;
 
 const BOT_NAMES = [
   "Bé Giun 🐛", "Giun Nhí 👶", "Sâu Con 🍎", "Bé Na 🐍", "Giun Đất 🌱",
@@ -578,15 +578,20 @@ function tickRoom(room) {
     }
   }
 
-  // 2. Kiểm tra va chạm giữa các con giun (Snake vs Snake)
+  // 2. Kiểm tra va chạm giữa các con giun (Snake vs Snake) - Tối ưu Bounding Box
   for (const p1 of playersList) {
     if (!p1.alive) continue;
 
     for (const p2 of playersList) {
-      if (!p2.alive) continue;
-      if (p1.id === p2.id) continue; // Không tự đâm chính mình
+      if (!p2.alive || p1.id === p2.id) continue;
 
-      // Kiểm tra nếu đầu p1 đâm vào bất kỳ đốt thân nào của p2
+      // Nhanh: Nếu 2 đầu quá xa nhau so với chiều dài thân của p2, bỏ qua ngay để nhẹ CPU!
+      const p2BodyLen = p2.body.length;
+      const maxReach = p2BodyLen * 7 + 100;
+      const dxHead = p1.x - p2.x;
+      const dyHead = p1.y - p2.y;
+      if (dxHead * dxHead + dyHead * dyHead > maxReach * maxReach) continue;
+
       const body = p2.body;
       const hitRadius = p1.radius + (p2.radius * 0.7);
       const hitRadiusSq = hitRadius * hitRadius;
@@ -606,11 +611,23 @@ function tickRoom(room) {
     }
   }
 
-  // 3. Đóng gói gói tin tick gửi cho tất cả người chơi trong phòng
-  const leaderboard = playersList
-    .map(p => ({ id: p.id, name: p.name, score: Math.floor(p.score), kills: p.kills, avatar: p.avatar }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+  // 3. Đóng gói gói tin tick gửi cho tất cả người chơi trong phòng (Tiết kiệm băng thông)
+  room.tickCount = (room.tickCount || 0) + 1;
+
+  // Leaderboard chỉ cần tính và gửi mỗi 10 tick (500ms)
+  const sendLb = (room.tickCount % 10 === 0) || !room.cachedLb;
+  if (sendLb) {
+    room.cachedLb = playersList
+      .map(p => ({ id: p.id, name: p.name, score: Math.floor(p.score), kills: p.kills, avatar: p.avatar }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }
+
+  // Mồi chỉ cần gửi mỗi 4 tick (200ms) vì mồi đứng yên, giảm 75% dung lượng mạng
+  const sendFoods = (room.tickCount % 4 === 0) || !room.cachedFoods;
+  if (sendFoods) {
+    room.cachedFoods = room.foods.map(f => [Math.round(f.x), Math.round(f.y), f.val, f.color]);
+  }
 
   const playersSummary = playersList.map(p => ({
     id: p.id,
@@ -629,8 +646,8 @@ function tickRoom(room) {
   const tickPacket = JSON.stringify({
     type: "tick",
     players: playersSummary,
-    foods: room.foods.map(f => [Math.round(f.x), Math.round(f.y), f.val, f.color]),
-    leaderboard
+    ...(sendFoods && { foods: room.cachedFoods }),
+    ...(sendLb && { leaderboard: room.cachedLb })
   });
 
   for (const [, player] of room.players) {
